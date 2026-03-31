@@ -1,0 +1,56 @@
+# Sample API Requests
+
+## Register User
+POST http://localhost:8000/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "email": "john.doe@example.com",
+  "password": "SecurePass123",
+  "phone": "+1234567890",
+  "first_name": "John",
+  "last_name": "Doe"
+}
+
+## Login
+POST http://localhost:8000/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "john.doe@example.com",
+  "password": "SecurePass123"
+}
+
+## Get Current User
+GET http://localhost:8000/api/v1/auth/me
+Authorization: Bearer <access_token>
+
+## Refresh Token
+POST http://localhost:8000/api/v1/auth/refresh
+Content-Type: application/json
+
+{
+  "refresh_token": "<refresh_token>"
+}
+
+## Change Password
+POST http://localhost:8000/api/v1/auth/change-password
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+{
+  "old_password": "SecurePass123",
+  "new_password": "NewSecurePass456"
+}
+
+## Logout
+POST http://localhost:8000/api/v1/auth/logout
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+{
+  "refresh_token": "<refresh_token>"
+}
+
+## Health Check
+GET http://localhost:8000/health

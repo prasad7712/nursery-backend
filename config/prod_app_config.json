@@ -1,0 +1,34 @@
+{
+  "app_name": "FastAPI Auth Service",
+  "version": "1.0.0",
+  "environment": "production",
+  "debug": false,
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8000
+  },
+  "database": {
+    "url": "${DATABASE_URL}"
+  },
+  "jwt": {
+    "secret_key": "${JWT_SECRET_KEY}",
+    "algorithm": "HS256",
+    "access_token_expire_minutes": 15,
+    "refresh_token_expire_days": 7
+  },
+  "redis": {
+    "host": "${REDIS_HOST}",
+    "port": 6379,
+    "db": 0,
+    "password": "${REDIS_PASSWORD}",
+    "enabled": true
+  },
+  "rate_limiting": {
+    "enabled": true,
+    "requests": 60,
+    "window_seconds": 60
+  },
+  "cors": {
+    "origins": ["${FRONTEND_URL}"]
+  }
+}

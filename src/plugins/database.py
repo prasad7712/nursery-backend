@@ -1,0 +1,51 @@
+"""Database connection plugin using Prisma"""
+from typing import Optional
+from prisma import Prisma
+
+from src.utilities.config_manager import config
+
+
+class DatabasePlugin:
+    """Database connection manager using Prisma ORM"""
+    
+    def __init__(self):
+        self._client: Optional[Prisma] = None
+    
+    async def connect(self):
+        """Connect to database"""
+        try:
+            self._client = Prisma(
+                datasource={'url': config.database_url}
+            )
+            await self._client.connect()
+            print("✅ Database connected successfully")
+        except Exception as e:
+            print(f"❌ Database connection failed: {e}")
+            raise
+    
+    async def disconnect(self):
+        """Disconnect from database"""
+        if self._client:
+            await self._client.disconnect()
+            print("✅ Database disconnected")
+    
+    @property
+    def client(self) -> Prisma:
+        """Get Prisma client instance"""
+        if not self._client:
+            raise RuntimeError("Database not connected. Call connect() first.")
+        return self._client
+    
+    async def health_check(self) -> bool:
+        """Check database connection health"""
+        try:
+            # Simple query to check connection
+            await self._client.user.count()
+            return True
+        except Exception as e:
+            print(f"Database health check failed: {e}")
+            return False
+
+
+# Singleton instance
+db = DatabasePlugin()
