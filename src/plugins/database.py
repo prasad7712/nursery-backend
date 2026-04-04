@@ -1,8 +1,8 @@
-"""Database connection plugin using Prisma"""
-from typing import Optional
+"""Database connection plugin using Prisma ORM"""
 from prisma import Prisma
+from typing import Optional
 
-from src.utilities.config_manager import config
+
 
 
 class DatabasePlugin:
@@ -12,13 +12,11 @@ class DatabasePlugin:
         self._client: Optional[Prisma] = None
     
     async def connect(self):
-        """Connect to database"""
+        """Connect to database using Prisma"""
         try:
-            self._client = Prisma(
-                datasource={'url': config.database_url}
-            )
+            self._client = Prisma()
             await self._client.connect()
-            print("✅ Database connected successfully")
+            print("✅ Database connected successfully via Prisma")
         except Exception as e:
             print(f"❌ Database connection failed: {e}")
             raise
@@ -40,10 +38,9 @@ class DatabasePlugin:
         """Check database connection health"""
         try:
             # Simple query to check connection
-            await self._client.user.count()
+            await self._client.user.find_first()
             return True
-        except Exception as e:
-            print(f"Database health check failed: {e}")
+        except Exception:
             return False
 
 

@@ -1,0 +1,8 @@
+{
+  "name": "nursery-backend",
+  "version": "1.0.0",
+  "description": "Nursery Management System Backend",
+  "devDependencies": {
+    "prisma": "0.11.0"
+  }
+}

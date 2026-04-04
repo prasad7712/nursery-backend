@@ -33,5 +33,9 @@
       "http://localhost:3000",
       "http://localhost:8000"
     ]
-  }
+  },
+  "admin_email": "${ADMIN_EMAIL}",
+  "admin_password": "${ADMIN_PASSWORD}",
+  "admin_first_name": "${ADMIN_FIRST_NAME}",
+  "admin_last_name": "${ADMIN_LAST_NAME}"
 }

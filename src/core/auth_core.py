@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import Tuple
 import hashlib
+import uuid
 
 from src.plugins.database import db
 from src.utilities.security import security
@@ -27,7 +28,7 @@ class AuthCore:
         # Hash password
         password_hash = security.hash_password(password)
         
-        # Create user
+        # Create user with Prisma (it will auto-generate ID and set default role)
         user = await db.client.user.create(
             data={
                 'email': email,
@@ -57,10 +58,22 @@ class AuthCore:
         return user
     
     async def create_tokens(self, user_id: str) -> Tuple[str, str]:
-        """Create access and refresh tokens"""
-        # Create access token
+        """Create access and refresh tokens with user role"""
+        # Get user to include role in token
+        user = await db.client.user.find_unique(where={'id': user_id})
+        if not user:
+            raise ValueError("User not found")
+        
+        # Get user role (default to CUSTOMER if not set)
+        user_role = getattr(user, 'role', 'CUSTOMER')
+        
+        # Create access token with role
         access_token = security.create_access_token(
-            data={"sub": user_id, "type": "access"}
+            data={
+                "sub": user_id,
+                "type": "access",
+                "role": user_role
+            }
         )
         
         # Create refresh token
@@ -71,7 +84,7 @@ class AuthCore:
         # Generate hash of refresh token for database storage
         token_hash = hashlib.sha256(refresh_token_value.encode()).hexdigest()
         
-        # Store refresh token in database
+        # Store refresh token in database with Prisma
         expires_at = datetime.now(timezone.utc) + timedelta(days=config.jwt_refresh_token_expire_days)
         await db.client.refreshtoken.create(
             data={

@@ -1,5 +1,6 @@
 """Authentication middleware for JWT token verification"""
 from datetime import datetime, timezone
+from functools import wraps
 from fastapi import HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
@@ -87,3 +88,57 @@ class AuthMiddleware:
             )
         
         return user
+    
+    @staticmethod
+    async def get_current_admin(credentials: HTTPAuthorizationCredentials):
+        """Get current admin user"""
+        user = await AuthMiddleware.get_current_user(credentials)
+        
+        if user.role != "ADMIN":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin access required"
+            )
+        
+        return user
+    
+    @staticmethod
+    def require_role(*allowed_roles):
+        """Decorator to require specific roles"""
+        def decorator(func):
+            @wraps(func)
+            async def wrapper(*args, credentials: HTTPAuthorizationCredentials = None, **kwargs):
+                if not credentials:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Authentication credentials missing"
+                    )
+                
+                user = await AuthMiddleware.get_current_user(credentials)
+                
+                if user.role not in allowed_roles:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=f"Required roles: {', '.join(allowed_roles)}"
+                    )
+                
+                # Pass user to the endpoint
+                kwargs['current_user'] = user
+                return await func(*args, **kwargs)
+            
+            return wrapper
+        return decorator
+    
+    @staticmethod
+    def extract_user_from_token(token: str) -> dict:
+        """Extract user data from JWT token"""
+        payload = security.decode_token(token)
+        if not payload:
+            return None
+        
+        return {
+            'user_id': payload.get('sub'),
+            'role': payload.get('role', 'CUSTOMER'),
+            'type': payload.get('type')
+        }
+

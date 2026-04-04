@@ -1,0 +1,198 @@
+### Admin Panel - User Management
+
+### List Users
+GET http://localhost:8000/api/v1/admin/users?page=1&per_page=20&status=active
+Authorization: Bearer {{access_token}}
+
+### Get User Details
+GET http://localhost:8000/api/v1/admin/users/user-123
+Authorization: Bearer {{access_token}}
+
+### Activate User
+PUT http://localhost:8000/api/v1/admin/users/user-123/status
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "is_active": true,
+  "reason": "User appeal approved"
+}
+
+### Deactivate/Suspend User
+PUT http://localhost:8000/api/v1/admin/users/user-456/status
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "is_active": false,
+  "reason": "Violating platform policies"
+}
+
+### Change User Role (Super Admin Only)
+PUT http://localhost:8000/api/v1/admin/users/user-789/role
+Authorization: Bearer {{super_admin_token}}
+Content-Type: application/json
+
+{
+  "new_role": "admin",
+  "reason": "Promoted to admin due to performance"
+}
+
+### Delete User (Super Admin Only)
+DELETE http://localhost:8000/api/v1/admin/users/user-xyz?reason=Account%20terminated
+Authorization: Bearer {{super_admin_token}}
+
+---
+
+### Admin Panel - Order Management
+
+### List Orders
+GET http://localhost:8000/api/v1/admin/orders?page=1&per_page=20&status=PENDING
+Authorization: Bearer {{access_token}}
+
+### Get Order Details
+GET http://localhost:8000/api/v1/admin/orders/order-123
+Authorization: Bearer {{access_token}}
+
+### Update Order Status
+PUT http://localhost:8000/api/v1/admin/orders/order-123/status
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "status": "CONFIRMED",
+  "note": "Order verified and ready for processing"
+}
+
+### Mark Order as Shipped
+PUT http://localhost:8000/api/v1/admin/orders/order-123/status
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "status": "SHIPPED",
+  "note": "Order dispatched with DHL - Tracking #123456"
+}
+
+### Mark Order as Delivered
+PUT http://localhost:8000/api/v1/admin/orders/order-123/status
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "status": "DELIVERED",
+  "note": "Delivery confirmed by customer"
+}
+
+### Cancel Order
+POST http://localhost:8000/api/v1/admin/orders/order-456/cancel?reason=Out%20of%20stock
+Authorization: Bearer {{access_token}}
+
+---
+
+### Admin Panel - Inventory Management
+
+### List All Inventory
+GET http://localhost:8000/api/v1/admin/inventory?page=1&per_page=20
+Authorization: Bearer {{access_token}}
+
+### List Low Stock Products Only
+GET http://localhost:8000/api/v1/admin/inventory?page=1&per_page=20&low_stock_only=true
+Authorization: Bearer {{access_token}}
+
+### Get Inventory for Specific Product
+GET http://localhost:8000/api/v1/admin/inventory/prod-tomato?product_id=prod-tomato
+Authorization: Bearer {{access_token}}
+
+### Add Stock (Receiving New Shipment)
+POST http://localhost:8000/api/v1/admin/inventory/inv-123/adjust
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "change_type": "ADD",
+  "quantity": 250,
+  "reason": "Received shipment from supplier",
+  "note": "Supplier Order #SUP-2024-001"
+}
+
+### Remove Stock (Damaged Goods)
+POST http://localhost:8000/api/v1/admin/inventory/inv-456/adjust
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "change_type": "REMOVE",
+  "quantity": 15,
+  "reason": "Damaged during transport",
+  "note": "Report #DAM-2024-005"
+}
+
+### Adjust Stock to Exact Level (Inventory Recount)
+POST http://localhost:8000/api/v1/admin/inventory/inv-789/adjust
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "change_type": "ADJUST",
+  "quantity": 450,
+  "reason": "Physical inventory count correction",
+  "note": "Q1 2024 inventory audit"
+}
+
+### Get Low Stock Alerts
+GET http://localhost:8000/api/v1/admin/inventory/low-stock/alert?page=1&per_page=20
+Authorization: Bearer {{access_token}}
+
+---
+
+### Admin Panel - Dashboard
+
+### Get Dashboard Statistics
+GET http://localhost:8000/api/v1/admin/dashboard/statistics
+Authorization: Bearer {{access_token}}
+
+### Get Admin Activity Logs
+GET http://localhost:8000/api/v1/admin/dashboard/activity-logs?page=1&per_page=20
+Authorization: Bearer {{access_token}}
+
+### Get Logs for Specific Admin
+GET http://localhost:8000/api/v1/admin/dashboard/activity-logs?page=1&per_page=20&admin_id=admin-123
+Authorization: Bearer {{access_token}}
+
+### Get Logs for Specific Action Type
+GET http://localhost:8000/api/v1/admin/dashboard/activity-logs?page=1&per_page=20&action_type=STATUS_CHANGE
+Authorization: Bearer {{access_token}}
+
+---
+
+### Notes for Testing
+
+1. Replace `{{access_token}}` with a valid admin JWT token
+2. Replace `{{super_admin_token}}` with a super admin JWT token for sensitive operations
+3. Replace entity IDs (user-123, order-456, etc.) with actual IDs from your database
+4. All requests require sending the Authorization header with Bearer token
+5. Admin endpoints require the user to have "admin" or "super_admin" role
+6. Super admin operations require "super_admin" role specifically
+
+### Testing with cURL
+
+Example cURL commands for testing:
+
+```bash
+# List users
+curl -X GET http://localhost:8000/api/v1/admin/users?page=1 \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN"
+
+# Update order status
+curl -X PUT http://localhost:8000/api/v1/admin/orders/order-123/status \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"CONFIRMED","note":"Order ready"}'
+
+# Adjust inventory
+curl -X POST http://localhost:8000/api/v1/admin/inventory/inv-123/adjust \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"change_type":"ADD","quantity":100,"reason":"Restocking"}'
+```

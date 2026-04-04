@@ -2,19 +2,28 @@
 from contextlib import asynccontextmanager
 from datetime import datetime
 
+# Load environment variables FIRST, before importing config
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from dotenv import load_dotenv
 
 from src.controllers.auth_controller import router as auth_router
+from src.controllers.product_controller import router as product_router
+from src.controllers.cart_controller import router as cart_router
+from src.controllers.order_controller import router as order_router
+from src.controllers.payment_controller import router as payment_router
+from src.controllers.admin_user_controller import router as admin_user_router
+from src.controllers.admin_order_controller import router as admin_order_router
+from src.controllers.admin_dashboard_controller import router as admin_dashboard_router
+from src.controllers.admin_inventory_controller import router as admin_inventory_router
 from src.plugins.database import db
 from src.utilities.cache_manager import cache
 from src.utilities.config_manager import config
+from src.utilities.admin_init import initialize_admin
 from src.data_contracts.api_request_response import HealthCheckResponse
-
-# Load environment variables
-load_dotenv()
 
 
 @asynccontextmanager
@@ -27,6 +36,9 @@ async def lifespan(app: FastAPI):
         # Connect to database
         await db.connect()
         
+        # Initialize admin account if not exists
+        await initialize_admin()
+        
         # Connect to Redis
         await cache.connect()
         
@@ -34,6 +46,7 @@ async def lifespan(app: FastAPI):
         
     except Exception as e:
         print(f"❌ Startup failed: {e}")
+        raise
         raise
     
     yield
@@ -83,6 +96,14 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # Include routers
 app.include_router(auth_router)
+app.include_router(product_router)
+app.include_router(cart_router)
+app.include_router(order_router)
+app.include_router(payment_router)
+app.include_router(admin_user_router)
+app.include_router(admin_order_router)
+app.include_router(admin_dashboard_router)
+app.include_router(admin_inventory_router)
 
 
 # Health check endpoint

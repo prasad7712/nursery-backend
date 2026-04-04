@@ -25,9 +25,14 @@ class AuthService:
             last_name=request.last_name
         )
         
+        # Create tokens for immediate login after registration
+        access_token, refresh_token = await auth_core.create_tokens(user.id)
+        
         return {
             "message": "User registered successfully",
-            "user": UserResponse.model_validate(user)
+            "user": UserResponse.model_validate(user),
+            "access_token": access_token,
+            "refresh_token": refresh_token
         }
     
     async def login_user(self, request: LoginRequest) -> LoginResponse:

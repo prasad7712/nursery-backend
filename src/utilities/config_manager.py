@@ -114,6 +114,21 @@ class ConfigManager:
     @property
     def rate_limiting_enabled(self) -> bool:
         return self.get('rate_limiting.enabled', True)
+    
+    @property
+    def razorpay_key_id(self) -> str:
+        import os
+        return os.getenv('RAZORPAY_KEY_ID', 'placeholder_key_id')
+    
+    @property
+    def razorpay_key_secret(self) -> str:
+        import os
+        return os.getenv('RAZORPAY_KEY_SECRET', 'placeholder_key_secret')
+    
+    @property
+    def razorpay_webhook_secret(self) -> str:
+        import os
+        return os.getenv('RAZORPAY_WEBHOOK_SECRET', 'placeholder_webhook_secret')
 
 
 # Singleton instance

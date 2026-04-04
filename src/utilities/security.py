@@ -18,7 +18,17 @@ class SecurityUtils:
     
     @staticmethod
     def hash_password(password: str) -> str:
-        """Hash a password using bcrypt"""
+        """Hash a password using bcrypt
+        Note: Bcrypt has a 72-byte limit. Passwords exceeding this are truncated.
+        """
+        # Truncate password to 72 bytes as per bcrypt limitation
+        password_bytes = password.encode('utf-8')
+        if len(password_bytes) > 72:
+            # Truncate to 72 bytes (may split multi-byte characters)
+            password_bytes = password_bytes[:72]
+            # Decode back to string, ignoring partial multi-byte characters at end
+            password = password_bytes.decode('utf-8', errors='ignore')
+        
         return pwd_context.hash(password)
     
     @staticmethod

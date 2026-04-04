@@ -7,8 +7,9 @@ from src.data_contracts.api_request_response import (
     LoginRequest,
     RefreshTokenRequest,
     ChangePasswordRequest,
-    RegisterResponse,
-    LoginResponse,
+    RegisterApiResponse,
+    LoginApiResponse,
+    GetMeApiResponse,
     TokenResponse,
     MessageResponse,
     RateLimitResponse,
@@ -22,17 +23,19 @@ from src.utilities.rate_limiter import rate_limiter
 router = APIRouter(prefix="/api/v1/auth", tags=["Authentication"])
 
 
-@router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=RegisterApiResponse, status_code=status.HTTP_201_CREATED)
 async def register(request: RegisterRequest, req: Request):
     """
     Register a new user
     
     - **email**: User email address (unique)
     - **password**: Strong password (min 8 chars, uppercase, lowercase, digit)
-    - **phone**: Optional phone number
-    - **first_name**: Optional first name
-    - **last_name**: Optional last name
+    - **firstName**: User's first name
+    - **lastName**: User's last name
     """
+    # Debug: Print received password length
+    print(f"DEBUG: Password received: '{request.password}' (length: {len(request.password)} bytes)")
+    
     # Rate limiting
     client_ip = req.client.host
     is_limited, limit_info = await rate_limiter.is_rate_limited(f"register:{client_ip}")
@@ -44,7 +47,18 @@ async def register(request: RegisterRequest, req: Request):
     
     try:
         result = await auth_service.register_user(request)
-        return RegisterResponse(**result)
+        # Extract tokens from result
+        access_token = result.get('access_token', '')
+        refresh_token = result.get('refresh_token', '')
+        return RegisterApiResponse(
+            id=result['user'].id,
+            email=result['user'].email,
+            first_name=result['user'].first_name,
+            last_name=result['user'].last_name,
+            role=getattr(result['user'], 'role', 'CUSTOMER'),
+            token=access_token,
+            refresh_token=refresh_token
+        )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -57,15 +71,15 @@ async def register(request: RegisterRequest, req: Request):
         )
 
 
-@router.post("/login", response_model=LoginResponse)
+@router.post("/login", response_model=LoginApiResponse)
 async def login(request: LoginRequest, req: Request):
     """
-    Login user and get access tokens
+    Login user and get access token
     
     - **email**: User email address
     - **password**: User password
     
-    Returns JWT access token and refresh token
+    Returns JWT access token for authenticated requests
     """
     # Rate limiting
     is_limited, limit_info = await rate_limiter.is_rate_limited(
@@ -81,7 +95,16 @@ async def login(request: LoginRequest, req: Request):
     
     try:
         result = await auth_service.login_user(request)
-        return result
+        # result is LoginResponse with user and tokens
+        return LoginApiResponse(
+            id=result.user.id,
+            email=result.user.email,
+            first_name=result.user.first_name,
+            last_name=result.user.last_name,
+            role=getattr(result.user, 'role', 'CUSTOMER'),
+            token=result.tokens.access_token,
+            refresh_token=result.tokens.refresh_token
+        )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -174,18 +197,23 @@ async def logout(
         )
 
 
-@router.get("/me", response_model=UserResponse)
+@router.get("/me", response_model=GetMeApiResponse)
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security_scheme)
 ):
     """
     Get current authenticated user information
     
-    Requires authentication token
+    Requires authentication token in Authorization header
     """
     try:
         user = await AuthMiddleware.get_current_user(credentials)
-        return UserResponse.model_validate(user)
+        return GetMeApiResponse(
+            id=user.id,
+            email=user.email,
+            first_name=user.first_name,
+            last_name=user.last_name
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

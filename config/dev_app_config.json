@@ -8,7 +8,7 @@
     "port": 8000
   },
   "database": {
-    "url": "mysql://root:123456@127.0.0.1:3306/auth_db"
+    "url": "mysql://root:123456@127.0.0.1:3306/nursery_db"
   },
   "jwt": {
     "secret_key": "Fa1Fku9ZrkuC2dnmzNQr_Q3WgpDQG12esgzQ8Ot0XUs",
@@ -30,5 +30,9 @@
   },
   "cors": {
     "origins": ["http://localhost:3000", "http://localhost:8000"]
-  }
+  },
+  "admin_email": "${ADMIN_EMAIL}",
+  "admin_password": "${ADMIN_PASSWORD}",
+  "admin_first_name": "${ADMIN_FIRST_NAME}",
+  "admin_last_name": "${ADMIN_LAST_NAME}"
 }
