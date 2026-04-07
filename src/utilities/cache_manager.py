@@ -1,7 +1,6 @@
-"""Cache Management using Redis"""
+"""Cache Management - Disabled for free tier deployment"""
 import json
 from typing import Optional, Any
-import redis.asyncio as redis
 
 from src.utilities.config_manager import config
 
