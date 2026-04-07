@@ -376,6 +376,39 @@ class OrderListResponse(BaseModel):
     per_page: int
 
 
+# ==================== AI CHAT REQUEST/RESPONSE MODELS ====================
+
+class ChatMessageRequest(BaseModel):
+    """Chat message request"""
+    message: str = Field(..., min_length=1, max_length=2000, description="User message to chatbot")
+    conversation_id: Optional[str] = Field(None, description="Optional existing conversation ID")
+
+
+class ChatMessageResponse(BaseModel):
+    """Chat message response"""
+    message: str = Field(description="Original user message")
+    response: str = Field(description="AI response from chatbot")
+    conversation_id: str = Field(description="Conversation ID (new or existing)")
+    timestamp: str = Field(description="ISO 8601 timestamp of response")
+
+
+class ConversationResponse(BaseModel):
+    """Conversation metadata response"""
+    id: str = Field(description="Conversation ID")
+    created_at: datetime = Field(description="Creation timestamp")
+    updated_at: datetime = Field(description="Last update timestamp")
+    
+    class Config:
+        from_attributes = True
+        populate_by_name = True
+
+
+class ConversationListResponse(BaseModel):
+    """List of conversations response"""
+    conversations: list[ConversationResponse]
+    total: int = Field(description="Total number of conversations")
+
+
 # ==================== PAYMENT REQUEST/RESPONSE MODELS ====================
 
 class CreatePaymentOrderRequest(BaseModel):
@@ -424,3 +457,41 @@ class PaymentListResponse(BaseModel):
     total: int
     page: int
     per_page: int
+
+
+# ==================== AI CHATBOT REQUEST/RESPONSE MODELS ====================
+
+class ChatMessageRequest(BaseModel):
+    """User message for chatbot"""
+    message: str = Field(..., min_length=1, max_length=5000, description="User's message")
+    conversation_id: Optional[str] = Field(None, description="Existing conversation ID. If null, creates new conversation")
+
+
+class ChatMessageResponse(BaseModel):
+    """AI chatbot response"""
+    message: str = Field(..., description="User's original message")
+    response: str = Field(..., description="AI generated response")
+    conversation_id: str = Field(..., description="Conversation ID")
+    timestamp: str = Field(..., description="ISO8601 timestamp")
+    
+    class Config:
+        from_attributes = True
+
+
+class ConversationResponse(BaseModel):
+    """Conversation metadata response"""
+    id: str = Field(..., description="Conversation ID")
+    created_at: datetime = Field(..., description="Conversation creation timestamp")
+    updated_at: datetime = Field(..., description="Last message timestamp")
+    
+    class Config:
+        from_attributes = True
+
+
+class ConversationListResponse(BaseModel):
+    """List of user conversations"""
+    conversations: list[ConversationResponse] = Field(..., description="List of conversations")
+    total: int = Field(..., description="Total number of conversations")
+    
+    class Config:
+        from_attributes = True

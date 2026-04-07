@@ -19,8 +19,8 @@ from src.controllers.admin_user_controller import router as admin_user_router
 from src.controllers.admin_order_controller import router as admin_order_router
 from src.controllers.admin_dashboard_controller import router as admin_dashboard_router
 from src.controllers.admin_inventory_controller import router as admin_inventory_router
+from src.controllers.ai_controller import router as ai_router
 from src.plugins.database import db
-from src.utilities.cache_manager import cache
 from src.utilities.config_manager import config
 from src.utilities.admin_init import initialize_admin
 from src.data_contracts.api_request_response import HealthCheckResponse
@@ -39,9 +39,6 @@ async def lifespan(app: FastAPI):
         # Initialize admin account if not exists
         await initialize_admin()
         
-        # Connect to Redis
-        await cache.connect()
-        
         print("✅ All services connected successfully")
         
     except Exception as e:
@@ -54,8 +51,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     print("🛑 Shutting down FastAPI Auth Service...")
     await db.disconnect()
-    await cache.disconnect()
-    print("✅ All services disconnected")
+    print("✅ Database disconnected")
 
 
 # Create FastAPI application
@@ -104,6 +100,7 @@ app.include_router(admin_user_router)
 app.include_router(admin_order_router)
 app.include_router(admin_dashboard_router)
 app.include_router(admin_inventory_router)
+app.include_router(ai_router)
 
 
 # Health check endpoint
@@ -115,12 +112,10 @@ async def health_check():
     Returns the status of the service and its dependencies
     """
     db_status = "healthy" if await db.health_check() else "unhealthy"
-    cache_status = "healthy" if config.redis_enabled and await cache.exists("health_check") is not None else "disabled"
     
     return HealthCheckResponse(
         status="healthy",
         database=db_status,
-        cache=cache_status,
         timestamp=datetime.utcnow()
     )
 

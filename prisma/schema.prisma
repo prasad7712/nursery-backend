@@ -41,6 +41,11 @@ enum AdminActionType {
   ACTIVATE
 }
 
+enum ChatMessageRole {
+  USER
+  ASSISTANT
+}
+
 // ==================== Models ====================
 
 model User {
@@ -61,6 +66,7 @@ model User {
   orders         Order[]
   payments       Payment[]
   admin_logs     AdminLog[]
+  ai_conversations AIChatConversation[]
 
   @@map("users")
 }
@@ -300,4 +306,34 @@ model InventoryLog {
   @@index([change_type])
   @@index([created_at])
   @@map("inventory_logs")
+}
+
+// ==================== AI Chatbot Models ====================
+
+model AIChatConversation {
+  id        String   @id @default(uuid())
+  user_id   String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user      User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  messages  AIChatMessage[]
+
+  @@index([user_id])
+  @@index([created_at])
+  @@map("ai_chat_conversations")
+}
+
+model AIChatMessage {
+  id              String           @id @default(uuid())
+  conversation_id String
+  role            ChatMessageRole
+  message         String           @db.LongText
+  created_at      DateTime         @default(now())
+
+  conversation AIChatConversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+
+  @@index([conversation_id])
+  @@index([created_at])
+  @@map("ai_chat_messages")
 }
