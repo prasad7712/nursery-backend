@@ -41,9 +41,11 @@ async def list_categories(
             where=where,
             skip=(page - 1) * per_page,
             take=per_page,
-            include={'products': True},
-            order_by=[{'created_at': 'desc'}]
+            include={'products': True}
         )
+        
+        # Sort by created_at descending
+        categories = sorted(categories, key=lambda x: x.created_at, reverse=True) if categories else []
         
         result = []
         for cat in categories:

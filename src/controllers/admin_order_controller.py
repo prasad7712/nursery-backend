@@ -41,9 +41,9 @@ async def list_orders(
         if status:
             where['status'] = status
         if payment_status:
-            where['payment_status'] = payment_status
+            where['paymentStatus'] = payment_status
         if user_id:
-            where['user_id'] = user_id
+            where['userId'] = user_id
         
         total = await db.client.order.count(where=where)
         
@@ -51,9 +51,11 @@ async def list_orders(
             where=where,
             skip=(page - 1) * per_page,
             take=per_page,
-            include={'user': True, 'items': True},
-            order_by=[{'created_at': 'desc'}]
+            include={'user': True, 'items': True}
         )
+        
+        # Sort by createdAt descending
+        orders = sorted(orders, key=lambda x: x.createdAt, reverse=True) if orders else []
         
         result = []
         for order in orders:

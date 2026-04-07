@@ -55,7 +55,7 @@ async def register(request: RegisterRequest, req: Request):
             email=result['user'].email,
             first_name=result['user'].first_name,
             last_name=result['user'].last_name,
-            role=getattr(result['user'], 'role', 'CUSTOMER'),
+            role=result['user'].role,
             token=access_token,
             refresh_token=refresh_token
         )
@@ -101,7 +101,7 @@ async def login(request: LoginRequest, req: Request):
             email=result.user.email,
             first_name=result.user.first_name,
             last_name=result.user.last_name,
-            role=getattr(result.user, 'role', 'CUSTOMER'),
+            role=result.user.role,
             token=result.tokens.access_token,
             refresh_token=result.tokens.refresh_token
         )

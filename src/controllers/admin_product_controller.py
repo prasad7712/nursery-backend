@@ -56,9 +56,11 @@ async def list_products(
         products = await db.client.product.find_many(
             where=where,
             skip=(page - 1) * per_page,
-            take=per_page,
-            order_by=[{'created_at': 'desc'}]
+            take=per_page
         )
+        
+        # Sort by created_at descending
+        products = sorted(products, key=lambda x: x.created_at, reverse=True) if products else []
         
         return AdminProductListResponse(
             products=[AdminProductResponse.model_validate(p) for p in products],

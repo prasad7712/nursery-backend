@@ -38,14 +38,11 @@ async def get_dashboard_statistics(credentials=Depends(security_scheme)):
         # Get product count
         product_stats = await admin_service.get_product_count()
         
-        # Get low stock products
-        low_stock = await admin_service.get_low_stock_products(page=1, per_page=5)
-        
         return AdminDashboardResponse(
             users=user_stats,
             orders=order_stats,
             products=product_stats,
-            low_stock_count=len(low_stock['inventories']) if low_stock['inventories'] else 0,
+            low_stock_count=product_stats.get('low_stock', 0),
             timestamp=None
         )
     except HTTPException:
@@ -76,18 +73,40 @@ async def get_activity_logs(
     """
     try:
         from src.middlewares.auth_middleware import AuthMiddleware
+        import json
+        
         admin = await AuthMiddleware.get_current_admin(credentials)
         
-        logs = await admin_service.get_admin_logs(
+        logs_data = await admin_service.get_admin_logs(
             admin_id=admin_id,
             action_type=action_type,
             page=page,
             per_page=per_page
         )
         
+        # Convert logs to AdminLogResponse format
+        logs_list = []
+        for log in logs_data.get('logs', []):
+            log_dict = {
+                'id': log.id,
+                'admin_id': log.admin_id,
+                'admin_email': log.admin.email if hasattr(log, 'admin') and log.admin else None,
+                'action_type': log.action_type,
+                'entity_type': log.entity_type,
+                'entity_id': log.entity_id,
+                'old_values': json.loads(log.old_values) if log.old_values else None,
+                'new_values': json.loads(log.new_values) if log.new_values else None,
+                'reason': log.reason,
+                'ip_address': log.ip_address,
+                'user_agent': log.user_agent if hasattr(log, 'user_agent') else None,
+                'created_at': log.created_at
+            }
+            from src.data_contracts.admin_request_response import AdminLogResponse
+            logs_list.append(AdminLogResponse(**log_dict))
+        
         return AdminLogsResponse(
-            logs=logs.get('logs', []),
-            total=logs.get('total', 0),
+            logs=logs_list,
+            total=logs_data.get('total', 0),
             page=page,
             per_page=per_page
         )

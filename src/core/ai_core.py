@@ -1,4 +1,4 @@
-"""Core AI/Chatbot functionality using Google Gemini API"""
+"""Core AI/Chatbot functionality using Groq API"""
 import os
 import logging
 from typing import Optional, List, Dict
@@ -60,72 +60,43 @@ CONSTRAINTS:
 
 
 class AICore:
-    """Core AI functionality wrapper for Gemini API"""
+    """Core AI functionality wrapper for Groq API"""
     
     def __init__(self):
-        """Initialize Gemini API client"""
-        self.api_key = os.getenv("GEMINI_API_KEY")
-        self.model_name = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
-        self.model = None
+        """Initialize Groq API client"""
+        self.api_key = os.getenv("GROQ_API_KEY")
+        self.model_name = os.getenv("GROQ_MODEL", "llama-3.1-70b-versatile")
+        self.client = None
         self.init_error = None
         
         logger.info(f"🔍 AI Core init: API Key present = {bool(self.api_key)}, Model = {self.model_name}")
         
         if not self.api_key:
-            logger.warning("⚠️  GEMINI_API_KEY not found in environment variables - AI features will be unavailable")
+            logger.warning("⚠️  GROQ_API_KEY not found in environment variables - AI features will be unavailable")
             return
         
         try:
-            # Lazy import of google.generativeai
-            logger.info("📦 Step 1: Loading google.generativeai module...")
-            import google.generativeai as genai
-            logger.info("✅ Step 1: google.generativeai module loaded")
+            logger.info("📦 Step 1: Loading groq module...")
+            from groq import Groq
+            logger.info("✅ Step 1: groq module loaded")
             
-            logger.info("📦 Step 2: Loading HarmCategory, HarmBlockThreshold...")
-            from google.generativeai.types import HarmCategory, HarmBlockThreshold
-            logger.info("✅ Step 2: Types loaded")
+            logger.info("🔑 Step 2: Configuring Groq API...")
+            self.client = Groq(api_key=self.api_key)
+            logger.info("✅ Step 2: Groq configured")
             
-            logger.info("🔑 Step 3: Configuring Gemini API...")
-            genai.configure(api_key=self.api_key)
-            logger.info("✅ Step 3: Gemini configured")
-            
-            logger.info("🤖 Step 4: Initializing Gemini model...")
-            self.model = genai.GenerativeModel(
-                self.model_name,
-                system_instruction=SYSTEM_PROMPT,
-                safety_settings=[
-                    {
-                        "category": HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-                        "threshold": HarmBlockThreshold.BLOCK_ONLY_HIGH
-                    },
-                    {
-                        "category": HarmCategory.HARM_CATEGORY_HARASSMENT,
-                        "threshold": HarmBlockThreshold.BLOCK_ONLY_HIGH
-                    },
-                    {
-                        "category": HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-                        "threshold": HarmBlockThreshold.BLOCK_ONLY_HIGH
-                    },
-                    {
-                        "category": HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-                        "threshold": HarmBlockThreshold.BLOCK_ONLY_HIGH
-                    },
-                ]
-            )
-            logger.info(f"✅ Step 4: Gemini model initialized")
-            logger.info(f"✅✅✅ Gemini AI initialized successfully with model: {self.model_name}")
+            logger.info(f"✅✅✅ Groq AI initialized successfully with model: {self.model_name}")
             
         except ModuleNotFoundError as e:
-            error_msg = f"❌ google-generativeai package not installed. Install with: pip install google-generativeai==0.7.2. Error: {e}"
+            error_msg = f"❌ groq package not installed. Install with: pip install groq. Error: {e}"
             logger.error(error_msg)
             self.init_error = error_msg
-            self.model = None
+            self.client = None
             
         except Exception as e:
-            error_msg = f"❌ Failed to initialize Gemini API: {type(e).__name__}: {e}"
+            error_msg = f"❌ Failed to initialize Groq API: {type(e).__name__}: {e}"
             logger.error(error_msg, exc_info=True)
             self.init_error = error_msg
-            self.model = None
+            self.client = None
     
     async def generate_response(
         self,
@@ -133,7 +104,7 @@ class AICore:
         conversation_history: Optional[List[Dict[str, str]]] = None
     ) -> str:
         """
-        Generate AI response using Gemini API
+        Generate AI response using Groq API
         
         Args:
             user_message: The user's input message
@@ -147,46 +118,61 @@ class AICore:
             RuntimeError: If API not initialized
             Exception: If API call fails
         """
-        if not self.model or self.init_error:
-            error_msg = self.init_error or "Gemini model not initialized. Check GEMINI_API_KEY environment variable."
+        if not self.client or self.init_error:
+            error_msg = self.init_error or "Groq API not initialized. Check GROQ_API_KEY environment variable."
             logger.error(f"❌ Cannot generate response: {error_msg}")
             raise RuntimeError(error_msg)
         
         try:
             logger.info(f"🤖 Generating response for message: {user_message[:50]}...")
             
-            # Prepare conversation history in Gemini format
-            chat_history = []
+            # Prepare messages in Groq format
+            messages = [
+                {"role": "system", "content": SYSTEM_PROMPT}
+            ]
+            
+            # Add conversation history
             if conversation_history:
-                for msg in conversation_history[-10:]:  # Limit to last 10 messages for context window
-                    role = "user" if msg.get("role") == "USER" else "model"
-                    chat_history.append({
+                for msg in conversation_history[-10:]:  # Limit to last 10 messages for context
+                    role = "user" if msg.get("role") == "USER" else "assistant"
+                    messages.append({
                         "role": role,
-                        "parts": [{"text": msg.get("message", "")}]
+                        "content": msg.get("message", "")
                     })
             
-            # Create chat session with history
-            chat = self.model.start_chat(history=chat_history)
+            # Add current user message
+            messages.append({
+                "role": "user",
+                "content": user_message
+            })
             
-            # Send message and get response
-            response = chat.send_message(user_message)
+            # Call Groq API
+            completion = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=messages,
+                temperature=0.7,
+                max_tokens=1024,
+                top_p=1,
+                stream=False,
+                stop=None,
+            )
             
-            # Extract text from response
-            if response.parts:
-                ai_response = response.parts[0].text
+            # Extract response
+            if completion.choices and len(completion.choices) > 0:
+                ai_response = completion.choices[0].message.content
                 logger.info(f"✅ AI response generated successfully")
                 return ai_response
             else:
-                logger.warning("⚠️  Empty response from Gemini API")
+                logger.warning("⚠️  Empty response from Groq API")
                 return "I couldn't generate a response. Could you try rephrasing your question?"
                 
         except Exception as e:
-            logger.error(f"❌ Error calling Gemini API: {e}", exc_info=True)
+            logger.error(f"❌ Error calling Groq API: {e}", exc_info=True)
             raise RuntimeError(f"Failed to generate AI response: {e}")
     
     def is_available(self) -> bool:
-        """Check if Gemini API is available"""
-        return self.model is not None and self.init_error is None
+        """Check if Groq API is available"""
+        return self.client is not None and self.init_error is None
 
 
 # Global AI instance (lazy initialization)
@@ -200,3 +186,7 @@ def get_ai_core() -> AICore:
         logger.info("🔧 Initializing AI Core singleton...")
         _ai_core = AICore()
     return _ai_core
+
+
+# Create singleton instance
+ai_core = get_ai_core()

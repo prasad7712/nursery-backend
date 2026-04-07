@@ -60,13 +60,16 @@ class AdminService:
             
             total = await db.client.adminlog.count(where=where)
             
+            # Get logs without order_by initially, then sort in Python
             logs = await db.client.adminlog.find_many(
                 where=where,
                 skip=(page - 1) * per_page,
                 take=per_page,
-                order_by=[{'created_at': 'desc'}],
                 include={'admin': True}
             )
+            
+            # Sort by created_at descending
+            logs = sorted(logs, key=lambda x: x.created_at, reverse=True) if logs else []
             
             return {
                 'logs': logs,
@@ -268,6 +271,70 @@ class AdminService:
             }
         except Exception as e:
             raise Exception(f"Error getting low stock products: {str(e)}")
+    
+    async def get_user_count(self) -> Dict[str, int]:
+        """Get user statistics"""
+        try:
+            total_users = await db.client.user.count()
+            active_users = await db.client.user.count(where={'is_active': True})
+            inactive_users = await db.client.user.count(where={'is_active': False})
+            total_admins = await db.client.user.count(where={'role': 'ADMIN'})
+            
+            return {
+                'total': total_users,
+                'active': active_users,
+                'inactive': inactive_users,
+                'admins': total_admins
+            }
+        except Exception as e:
+            raise Exception(f"Error getting user count: {str(e)}")
+    
+    async def get_order_statistics(self) -> Dict[str, Any]:
+        """Get order statistics"""
+        try:
+            total_orders = await db.client.order.count()
+            pending = await db.client.order.count(where={'status': 'PENDING'})
+            confirmed = await db.client.order.count(where={'status': 'CONFIRMED'})
+            shipped = await db.client.order.count(where={'status': 'SHIPPED'})
+            delivered = await db.client.order.count(where={'status': 'DELIVERED'})
+            cancelled = await db.client.order.count(where={'status': 'CANCELLED'})
+            paid = await db.client.order.count(where={'paymentStatus': 'SUCCESSFUL'})
+            unpaid = await db.client.order.count(where={'paymentStatus': 'PENDING'})
+            
+            return {
+                'total': total_orders,
+                'pending': pending,
+                'confirmed': confirmed,
+                'shipped': shipped,
+                'delivered': delivered,
+                'cancelled': cancelled,
+                'by_payment_status': {
+                    'paid': paid,
+                    'unpaid': unpaid
+                }
+            }
+        except Exception as e:
+            raise Exception(f"Error getting order statistics: {str(e)}")
+    
+    async def get_product_count(self) -> Dict[str, int]:
+        """Get product statistics"""
+        try:
+            total_products = await db.client.product.count()
+            active_products = await db.client.product.count(where={'is_active': True})
+            inactive_products = await db.client.product.count(where={'is_active': False})
+            
+            # Get low stock count
+            inventories = await db.client.productinventory.find_many()
+            low_stock_count = len([inv for inv in inventories if inv.stock_level <= inv.low_stock_threshold])
+            
+            return {
+                'total': total_products,
+                'active': active_products,
+                'inactive': inactive_products,
+                'low_stock': low_stock_count
+            }
+        except Exception as e:
+            raise Exception(f"Error getting product count: {str(e)}")
 
 
 # Singleton instance

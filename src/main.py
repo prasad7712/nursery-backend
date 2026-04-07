@@ -18,6 +18,8 @@ from src.controllers.payment_controller import router as payment_router
 from src.controllers.admin_user_controller import router as admin_user_router
 from src.controllers.admin_order_controller import router as admin_order_router
 from src.controllers.admin_dashboard_controller import router as admin_dashboard_router
+from src.controllers.admin_product_controller import router as admin_product_router
+from src.controllers.admin_category_controller import router as admin_category_router
 from src.controllers.admin_inventory_controller import router as admin_inventory_router
 from src.controllers.ai_controller import router as ai_router
 from src.plugins.database import db
@@ -99,6 +101,8 @@ app.include_router(payment_router)
 app.include_router(admin_user_router)
 app.include_router(admin_order_router)
 app.include_router(admin_dashboard_router)
+app.include_router(admin_product_router)
+app.include_router(admin_category_router)
 app.include_router(admin_inventory_router)
 app.include_router(ai_router)
 

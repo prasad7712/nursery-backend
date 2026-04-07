@@ -78,6 +78,7 @@ class UserResponse(BaseModel):
     phone: Optional[str]
     first_name: Optional[str]
     last_name: Optional[str]
+    role: Optional[str] = "CUSTOMER"
     is_active: bool
     created_at: datetime
     updated_at: datetime

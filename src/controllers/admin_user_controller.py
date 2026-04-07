@@ -54,9 +54,11 @@ async def list_users(
         users = await db.client.user.find_many(
             where=where,
             skip=(page - 1) * per_page,
-            take=per_page,
-            order_by=[{'created_at': 'desc'}]
+            take=per_page
         )
+        
+        # Sort by created_at descending
+        users = sorted(users, key=lambda x: x.created_at, reverse=True) if users else []
         
         user_list = [AdminUserResponse.model_validate(u).dict() for u in users]
         
