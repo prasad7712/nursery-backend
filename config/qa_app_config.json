@@ -8,7 +8,7 @@
     "port": 8000
   },
   "database": {
-    "url": "mysql://root:123456@localhost:3306/auth_db"
+    "url": "postgresql://postgres:postgres@localhost:5432/auth_db"
   },
   "jwt": {
     "secret_key": "dev-secret-key-change-in-production",

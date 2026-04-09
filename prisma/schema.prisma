@@ -5,7 +5,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -74,8 +74,8 @@ model User {
 model RefreshToken {
   id         String   @id @default(uuid())
   user_id    String
-  token      String   @db.LongText
-  token_hash String   @unique @db.VarChar(255)
+  token      String   @db.Text
+  token_hash String   @unique
   expires_at DateTime
   created_at DateTime @default(now())
   is_revoked Boolean  @default(false)
@@ -90,7 +90,7 @@ model Category {
   id          String   @id @default(uuid())
   name        String
   slug        String   @unique
-  description String   @db.LongText
+  description String   @db.Text
   icon        String?
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
@@ -109,9 +109,9 @@ model Product {
   category_id         String
   price               Float
   cost_price          Float?
-  image_url           String   @db.LongText
-  description         String   @db.LongText
-  care_instructions   String   @db.LongText
+  image_url           String   @db.Text
+  description         String   @db.Text
+  care_instructions   String   @db.Text
   light_requirements  String
   watering_frequency  String
   temperature_range   String
@@ -259,11 +259,11 @@ model AdminLog {
   action_type AdminActionType
   entity_type String            // e.g., "Product", "User", "Order"
   entity_id   String
-  old_values  String?           @db.LongText // JSON
-  new_values  String?           @db.LongText // JSON
+  old_values  String?           @db.Text // JSON
+  new_values  String?           @db.Text // JSON
   reason      String?
   ip_address  String?
-  user_agent  String?           @db.LongText
+  user_agent  String?           @db.Text
   created_at  DateTime          @default(now())
 
   admin User @relation(fields: [admin_id], references: [id], onDelete: Cascade)
@@ -328,7 +328,7 @@ model AIChatMessage {
   id              String           @id @default(uuid())
   conversation_id String
   role            ChatMessageRole
-  message         String           @db.LongText
+  message         String           @db.Text
   created_at      DateTime         @default(now())
 
   conversation AIChatConversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)

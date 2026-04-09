@@ -8,7 +8,7 @@
     "port": 8000
   },
   "database": {
-    "url": "mysql://root:123456@127.0.0.1:3306/nursery_db"
+    "url": "postgresql://postgres:postgres@localhost:5432/nursery_db"
   },
   "jwt": {
     "secret_key": "Fa1Fku9ZrkuC2dnmzNQr_Q3WgpDQG12esgzQ8Ot0XUs",

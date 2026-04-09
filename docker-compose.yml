@@ -1,18 +1,19 @@
 version: '3.8'
 
 services:
-  mysql:
-    image: mysql:8.0-alpine
-    container_name: auth_mysql
+  postgresql:
+    image: postgres:15-alpine
+    container_name: auth_postgresql
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: auth_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: nursery_db
     ports:
-      - "3306:3306"
+      - "5432:5432"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - postgresql_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -34,14 +35,14 @@ services:
     build: .
     container_name: auth_app
     environment:
-      - DATABASE_URL=mysql://root:root@mysql:3306/auth_db
+      - DATABASE_URL=postgresql://postgres:postgres@postgresql:5432/nursery_db
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - ENVIRONMENT=development
     ports:
       - "8000:8000"
     depends_on:
-      mysql:
+      postgresql:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -50,5 +51,5 @@ services:
     command: python run_app.py
 
 volumes:
-  mysql_data:
+  postgresql_data:
   redis_data:
