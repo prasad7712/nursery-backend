@@ -1,20 +1,19 @@
 #!/bin/bash
 # Render build script for nursery-backend
-# This handles installation of packages with pre-built wheels to avoid compilation
+# Force Python 3.11 and use only pre-built wheels
 
 set -e
 
-echo "==> Setting up build environment..."
+echo "==> Python version:"
 python --version
-pip --version
 
 echo "==> Upgrading pip, setuptools, and wheel..."
 pip install --upgrade pip setuptools wheel
 
-echo "==> Installing Python dependencies..."
-# Install with specific options to use pre-built wheels and handle Rust packages
+echo "==> Installing dependencies with wheel preference..."
 pip install --prefer-binary \
     --only-binary :all: \
+    --no-build-isolation \
     -r requirements.txt
 
 echo "==> Generating Prisma client..."
