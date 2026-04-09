@@ -35,25 +35,33 @@ async def lifespan(app: FastAPI):
     print("🚀 Starting FastAPI Auth Service...")
     
     try:
-        # Connect to database
-        await db.connect()
+        # Connect to database (non-blocking - allow app to start even if DB fails)
+        try:
+            await db.connect()
+            
+            # Initialize admin account if not exists
+            await initialize_admin()
+            
+            print("✅ Database connection successful")
+        except Exception as db_error:
+            print(f"⚠️  Database connection warning (app will still start): {db_error}")
+            print("⚠️  Database will be retried on first request")
         
-        # Initialize admin account if not exists
-        await initialize_admin()
-        
-        print("✅ All services connected successfully")
+        print("✅ FastAPI service started successfully")
         
     except Exception as e:
-        print(f"❌ Startup failed: {e}")
-        raise
+        print(f"❌ Critical startup error: {e}")
         raise
     
     yield
     
     # Shutdown
     print("🛑 Shutting down FastAPI Auth Service...")
-    await db.disconnect()
-    print("✅ Database disconnected")
+    try:
+        await db.disconnect()
+        print("✅ Database disconnected")
+    except Exception as e:
+        print(f"⚠️  Shutdown warning: {e}")
 
 
 # Create FastAPI application
