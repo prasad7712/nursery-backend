@@ -25,7 +25,20 @@ class ConfigManager:
         if environment is None:
             environment = os.getenv('ENVIRONMENT', 'dev')
         
-        config_file = f"{environment}_app_config.json"
+        # Map environment names to config file names
+        env_map = {
+            'production': 'prod',
+            'prod': 'prod',
+            'dev': 'dev',
+            'development': 'dev',
+            'qa': 'qa',
+            'test': 'qa'
+        }
+        
+        # Get the mapped environment
+        mapped_env = env_map.get(environment.lower(), environment.lower())
+        
+        config_file = f"{mapped_env}_app_config.json"
         config_path = Path(__file__).parent.parent.parent / "config" / config_file
         
         if not config_path.exists():
