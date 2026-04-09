@@ -48,6 +48,8 @@ services:
         value: rzp_test_secret
       - key: GROQ_API_KEY
         value: gsk_your_groq_api_key
+      - key: PRISMA_PYTHON_BINARIES_CACHE
+        value: /opt/render/.cache/prisma-python
 
 databases:
   - name: nursery_db
