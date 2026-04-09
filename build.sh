@@ -19,4 +19,7 @@ pip install --prefer-binary \
 echo "==> Generating Prisma client..."
 python -m prisma generate
 
+echo "==> Fetching Prisma query engine..."
+python -m prisma py fetch
+
 echo "==> Build completed successfully!"
