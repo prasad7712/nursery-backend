@@ -17,14 +17,20 @@ class DatabasePlugin:
     async def connect(self):
         try:
             # Ensure Prisma binary exists before connecting
-            subprocess.run(
+            print("🔄 Fetching Prisma binary...")
+            result = subprocess.run(
                 [sys.executable, "-m", "prisma", "py", "fetch"],
                 check=True,
-                capture_output=True
+                capture_output=False  # 👈 show output in Render logs
             )
+            print(f"✅ Prisma fetch completed")
+            
             self._client = Prisma()
             await self._client.connect()
             print("✅ Database connected successfully via Prisma")
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Prisma fetch failed with code {e.returncode}")
+            raise
         except Exception as e:
             print(f"❌ Database connection failed: {e}")
             raise
