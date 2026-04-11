@@ -1,4 +1,7 @@
 """Database connection plugin using Prisma ORM"""
+import subprocess
+import sys
+
 from prisma import Prisma
 from typing import Optional
 
@@ -12,8 +15,13 @@ class DatabasePlugin:
         self._client: Optional[Prisma] = None
     
     async def connect(self):
-        """Connect to database using Prisma"""
         try:
+            # Ensure Prisma binary exists before connecting
+            subprocess.run(
+                [sys.executable, "-m", "prisma", "py", "fetch"],
+                check=True,
+                capture_output=True
+            )
             self._client = Prisma()
             await self._client.connect()
             print("✅ Database connected successfully via Prisma")
