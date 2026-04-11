@@ -1,4 +1,6 @@
 """Database connection plugin using Prisma ORM"""
+import glob
+import os
 import subprocess
 import sys
 
@@ -14,17 +16,30 @@ class DatabasePlugin:
     def __init__(self):
         self._client: Optional[Prisma] = None
     
+    
     async def connect(self):
         try:
-            # Ensure Prisma binary exists before connecting
             print("🔄 Fetching Prisma binary...")
-            result = subprocess.run(
+            subprocess.run(
                 [sys.executable, "-m", "prisma", "py", "fetch"],
                 check=True,
-                capture_output=False  # 👈 show output in Render logs
+                capture_output=False
             )
-            print(f"✅ Prisma fetch completed")
             
+            # Fix permissions — make the binary executable
+            binary_pattern = os.path.expanduser(
+                "~/.cache/prisma-python/binaries/**/*query-engine*"
+            )
+            for binary_path in glob.glob(binary_pattern, recursive=True):
+                print(f"🔧 Setting executable permission on: {binary_path}")
+                os.chmod(binary_path, 0o755)
+            
+            # Also check /opt/render path
+            render_pattern = "/opt/render/.cache/prisma-python/binaries/**/*query-engine*"
+            for binary_path in glob.glob(render_pattern, recursive=True):
+                print(f"🔧 Setting executable permission on: {binary_path}")
+                os.chmod(binary_path, 0o755)
+
             self._client = Prisma()
             await self._client.connect()
             print("✅ Database connected successfully via Prisma")
