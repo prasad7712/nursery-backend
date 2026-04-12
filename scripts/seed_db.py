@@ -6,16 +6,21 @@ import os
 # Add the project root to the path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.plugins.database import db
+from sqlalchemy import select, func
+from sqlalchemy.exc import IntegrityError
+
+from src.database import async_session_maker
+from src.models.product import Category, Product
+from src.models.admin import ProductInventory
+from src.models.product_disease import ProductDisease
 
 
 async def seed_database():
     """Seed database with categories and products"""
     
-    try:
-        # Connect to database
-        await db.connect()
-        print("✅ Connected to database")
+    async with async_session_maker() as session:
+        try:
+            print("✅ Connected to database")
         
         # Categories seed data
         categories_data = [
@@ -55,19 +60,30 @@ async def seed_database():
         print("\n📌 Upserting categories...")
         created_categories: dict[str, str] = {}
         for cat_data in categories_data:
-            category = await db.client.category.upsert(
-                where={"slug": cat_data["slug"]},
-                data={
-                    "create": cat_data,
-                    "update": {
-                        "name": cat_data["name"],
-                        "description": cat_data["description"],
-                        "icon": cat_data.get("icon"),
-                    },
-                },
-            )
+            stmt = select(Category).where(Category.slug == cat_data["slug"])
+            result = await session.execute(stmt)
+            category = result.scalar_one_or_none()
+            
+            if category:
+                # Update existing category
+                category.name = cat_data["name"]
+                category.description = cat_data["description"]
+                category.icon = cat_data.get("icon")
+            else:
+                # Create new category
+                category = Category(
+                    name=cat_data["name"],
+                    slug=cat_data["slug"],
+                    description=cat_data["description"],
+                    icon=cat_data.get("icon")
+                )
+                session.add(category)
+            
+            await session.flush()
             created_categories[cat_data["slug"]] = category.id
             print(f"  ✅ Upserted category: {cat_data['name']}")
+        
+        await session.commit()
         
         # Products seed data
         products_data = [
@@ -231,61 +247,91 @@ async def seed_database():
                 if not prod_data.get("category_id"):
                     print(f"  ⚠️  Skipping {prod_data['name']} - category not found")
                     continue
-
-                product = await db.client.product.upsert(
-                    where={"slug": prod_data["slug"]},
-                    data={
-                        "create": prod_data,
-                        "update": {
-                            "name": prod_data["name"],
-                            "scientific_name": prod_data.get("scientific_name"),
-                            "category_id": prod_data["category_id"],
-                            "price": prod_data["price"],
-                            "cost_price": prod_data.get("cost_price"),
-                            "image_url": prod_data["image_url"],
-                            "description": prod_data["description"],
-                            "care_instructions": prod_data["care_instructions"],
-                            "light_requirements": prod_data["light_requirements"],
-                            "watering_frequency": prod_data["watering_frequency"],
-                            "temperature_range": prod_data["temperature_range"],
-                            "is_active": prod_data.get("is_active", True),
-                        },
-                    },
-                )
-                print(f"  ✅ Upserted product: {prod_data['name']} (ID: {product.id})")
-
-                # Ensure inventory exists for the product
-                await db.client.productinventory.upsert(
-                    where={"product_id": product.id},
-                    data={
-                        "create": {
-                            "product_id": product.id,
-                            "stock_level": 50,
-                            "low_stock_threshold": 10,
-                        },
-                        "update": {
-                            "stock_level": 50,
-                            "low_stock_threshold": 10,
-                        },
-                    },
-                )
                 
-                # Add some diseases for the product
+                # Check if product exists
+                stmt = select(Product).where(Product.slug == prod_data["slug"])
+                result = await session.execute(stmt)
+                product = result.scalar_one_or_none()
+                
+                if product:
+                    # Update existing product
+                    product.name = prod_data["name"]
+                    product.scientific_name = prod_data.get("scientific_name")
+                    product.category_id = prod_data["category_id"]
+                    product.price = prod_data["price"]
+                    product.cost_price = prod_data.get("cost_price")
+                    product.image_url = prod_data["image_url"]
+                    product.description = prod_data["description"]
+                    product.care_instructions = prod_data["care_instructions"]
+                    product.light_requirements = prod_data["light_requirements"]
+                    product.watering_frequency = prod_data["watering_frequency"]
+                    product.temperature_range = prod_data["temperature_range"]
+                    product.is_active = prod_data.get("is_active", True)
+                else:
+                    # Create new product
+                    product = Product(
+                        name=prod_data["name"],
+                        scientific_name=prod_data.get("scientific_name"),
+                        slug=prod_data["slug"],
+                        category_id=prod_data["category_id"],
+                        price=prod_data["price"],
+                        cost_price=prod_data.get("cost_price"),
+                        image_url=prod_data["image_url"],
+                        description=prod_data["description"],
+                        care_instructions=prod_data["care_instructions"],
+                        light_requirements=prod_data["light_requirements"],
+                        watering_frequency=prod_data["watering_frequency"],
+                        temperature_range=prod_data["temperature_range"],
+                        is_active=prod_data.get("is_active", True)
+                    )
+                    session.add(product)
+                
+                await session.flush()
+                print(f"  ✅ Upserted product: {prod_data['name']} (ID: {product.id})")
+                
+                # Ensure inventory exists for the product
+                stmt_inv = select(ProductInventory).where(ProductInventory.product_id == product.id)
+                result_inv = await session.execute(stmt_inv)
+                inventory = result_inv.scalar_one_or_none()
+                
+                if inventory:
+                    inventory.stock_level = 50
+                    inventory.low_stock_threshold = 10
+                else:
+                    inventory = ProductInventory(
+                        product_id=product.id,
+                        stock_level=50,
+                        low_stock_threshold=10
+                    )
+                    session.add(inventory)
+                
+                await session.flush()
+                
+                # Add some diseases for the product (skip if they exist)
                 diseases = ["Leaf Spot", "Root Rot", "Pests"]
                 for disease in diseases[:2]:  # Add 2 diseases per product
                     try:
-                        await db.client.productdisease.create(
-                            data={
-                                "product_id": product.id,
-                                "disease_name": disease
-                            }
+                        stmt_disease = select(ProductDisease).where(
+                            (ProductDisease.product_id == product.id) & 
+                            (ProductDisease.disease_name == disease)
                         )
-                    except Exception as e:
+                        result_disease = await session.execute(stmt_disease)
+                        existing = result_disease.scalar_one_or_none()
+                        
+                        if not existing:
+                            product_disease = ProductDisease(
+                                product_id=product.id,
+                                disease_name=disease
+                            )
+                            session.add(product_disease)
+                    except Exception:
                         # Disease might already exist, skip
                         pass
                         
             except Exception as e:
                 print(f"  ⚠️  Product {prod_data['name']} error: {str(e)[:120]}")
+        
+        await session.commit()
         
         # Print summary
         print("\n" + "="*60)
@@ -293,22 +339,25 @@ async def seed_database():
         print("="*60)
         
         # Get counts
-        cat_count = await db.client.category.count()
-        prod_count = await db.client.product.count()
-        inv_count = await db.client.productinventory.count()
+        cat_count_result = await session.execute(select(func.count()).select_from(Category))
+        cat_count = cat_count_result.scalar()
+        
+        prod_count_result = await session.execute(select(func.count()).select_from(Product))
+        prod_count = prod_count_result.scalar()
+        
+        inv_count_result = await session.execute(select(func.count()).select_from(ProductInventory))
+        inv_count = inv_count_result.scalar()
         
         print(f"📊 Summary:")
         print(f"   - Categories: {cat_count}")
         print(f"   - Products: {prod_count}")
         print(f"   - Inventories: {inv_count}")
         
-        await db.disconnect()
-        
     except Exception as e:
+        await session.rollback()
         print(f"\n❌ Seeding failed: {e}")
         import traceback
         traceback.print_exc()
-        await db.disconnect()
         sys.exit(1)
 
 

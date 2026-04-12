@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException, Depends, Request, status
 from fastapi.security import HTTPAuthorizationCredentials
 import json
 import os
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.services.payment_service import payment_service
 from src.data_contracts.api_request_response import (
@@ -11,6 +12,7 @@ from src.data_contracts.api_request_response import (
     PaymentResponse
 )
 from src.middlewares.auth_middleware import AuthMiddleware, security_scheme
+from src.database import get_session
 
 router = APIRouter(prefix="/api/v1", tags=["payments"])
 auth_middleware = AuthMiddleware()
@@ -21,7 +23,8 @@ auth_middleware = AuthMiddleware()
 @router.post("/payments/create-order", response_model=PaymentResponse, status_code=200)
 async def create_order(
     request: CreatePaymentOrderRequest,
-    credentials: HTTPAuthorizationCredentials = Depends(security_scheme)
+    credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
+    session: AsyncSession = Depends(get_session)
 ):
     """
     Create a payment order for checkout.
@@ -43,6 +46,7 @@ async def create_order(
         user = await auth_middleware.get_current_user(credentials)
         
         result = await payment_service.create_payment_order(
+            session,
             order_id=request.order_id,
             user_id=user.id,
             amount=request.amount,
@@ -60,7 +64,8 @@ async def create_order(
 @router.post("/payments/verify", response_model=PaymentResponse, status_code=200)
 async def verify_payment(
     request: VerifyPaymentRequest,
-    credentials: HTTPAuthorizationCredentials = Depends(security_scheme)
+    credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
+    session: AsyncSession = Depends(get_session)
 ):
     """
     Verify a Razorpay payment and update order status.
@@ -81,6 +86,7 @@ async def verify_payment(
         user = await auth_middleware.get_current_user(credentials)
         
         result = await payment_service.verify_payment(
+            session,
             order_id=request.razorpay_order_id,
             payment_id=request.razorpay_payment_id,
             signature=request.razorpay_signature
@@ -95,7 +101,7 @@ async def verify_payment(
 
 
 @router.post("/webhooks/razorpay", status_code=200)
-async def razorpay_webhook(request: Request):
+async def razorpay_webhook(request: Request, session: AsyncSession = Depends(get_session)):
     """
     Handle Razorpay webhook events.
     
@@ -139,7 +145,7 @@ async def razorpay_webhook(request: Request):
         event = json.loads(webhook_body_str)
         
         # Process webhook event
-        result = await payment_service.handle_webhook(event)
+        result = await payment_service.handle_webhook(session, event)
         
         return {"status": "received", **result}
     except HTTPException:
@@ -184,7 +190,8 @@ async def get_webhook_secret(
 @router.get("/payments/status/{order_id}")
 async def get_payment_status(
     order_id: str,
-    credentials: HTTPAuthorizationCredentials = Depends(security_scheme)
+    credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
+    session: AsyncSession = Depends(get_session)
 ):
     """
     Get payment status for an order.
@@ -201,11 +208,14 @@ async def get_payment_status(
     """
     try:
         # Verify auth
-        user_data = auth_middleware.verify_token(credentials.credentials)
+        user = await auth_middleware.get_current_user(credentials)
         
-        from src.plugins.database import db
+        from sqlalchemy import select
+        from src.models.payment import Payment
         
-        payment = db.payment.find_first(where={'orderId': order_id})
+        stmt = select(Payment).where(Payment.order_id == order_id)
+        result = await session.execute(stmt)
+        payment = result.scalar_one_or_none()
         
         if not payment:
             raise HTTPException(
@@ -214,13 +224,15 @@ async def get_payment_status(
             )
         
         return {
-            "order_id": payment.orderId,
-            "payment_id": payment.razorpayPaymentId,
-            "status": payment.status,
+            "order_id": payment.order_id,
+            "payment_id": payment.razorpay_payment_id,
+            "status": payment.status.value,
             "amount": payment.amount,
             "currency": payment.currency,
-            "created_at": payment.createdAt.isoformat()
+            "created_at": payment.created_at.isoformat()
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=400,

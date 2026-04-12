@@ -1,124 +1,118 @@
 """Order business logic core"""
 from typing import Optional, Dict, Any, List
 
-from src.plugins.database import db
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.models.cart import Cart, CartItem
+from src.models.order import Order, OrderItem
+from src.models.product import Product
 
 
 class OrderCore:
-    """Order domain logic using Prisma ORM"""
+    """Order domain logic using SQLAlchemy ORM"""
     
     async def create_order(
         self,
+        session: AsyncSession,
         user_id: str,
         shipping_address: str,
         notes: Optional[str] = None
     ) -> Dict[str, Any]:
-        """
-        Create order from user's cart.
-        
-        Steps:
-        1. Fetch user's cart
-        2. Verify cart is not empty
-        3. Create Order record
-        4. Create OrderItems (copy from CartItems with price snapshot)
-        5. Clear cart
-        6. Return order data
-        
-        Args:
-            user_id: User ID
-            shipping_address: Shipping address
-            notes: Optional notes
-        
-        Returns:
-            Order dictionary with items
-        
-        Raises:
-            ValueError: If cart is empty
-        """
+        """Create order from user's cart"""
         # Fetch user's cart
-        cart = await db.client.cart.find_unique(
-            where={"userId": user_id},
-            include={"items": {"include": {"product": True}}}
-        )
+        result = await session.execute(select(Cart).where(Cart.user_id == user_id))
+        cart = result.scalar_one_or_none()
         
-        if not cart or len(cart.items) == 0:
+        if not cart:
+            raise ValueError("Cannot create order: cart is empty")
+        
+        # Fetch cart items
+        result = await session.execute(select(CartItem).where(CartItem.cart_id == cart.id))
+        cart_items = result.scalars().all()
+        
+        if not cart_items:
             raise ValueError("Cannot create order: cart is empty")
         
         # Calculate total amount
         total_amount = 0.0
-        for item in cart.items:
-            total_amount += item.product.price * item.quantity
+        for cart_item in cart_items:
+            result = await session.execute(select(Product).where(Product.id == cart_item.product_id))
+            product = result.scalar_one_or_none()
+            if product:
+                total_amount += product.price * cart_item.quantity
         
         # Create Order
-        order = await db.client.order.create(
-            data={
-                "userId": user_id,
-                "status": "PENDING",
-                "totalAmount": round(total_amount, 2),
-                "shippingAddress": shipping_address,
-                "notes": notes
-            }
+        order = Order(
+            id=str(__import__('uuid').uuid4()),
+            user_id=user_id,
+            status="PENDING",
+            total_amount=round(total_amount, 2),
+            shipping_address=shipping_address,
+            notes=notes
         )
         
+        session.add(order)
+        await session.commit()
+        await session.refresh(order)
+        
         # Create OrderItems (snapshot pricing)
-        for cart_item in cart.items:
-            unit_price = cart_item.product.price
-            subtotal = unit_price * cart_item.quantity
+        for cart_item in cart_items:
+            result = await session.execute(select(Product).where(Product.id == cart_item.product_id))
+            product = result.scalar_one_or_none()
             
-            await db.client.orderitem.create(
-                data={
-                    "orderId": order.id,
-                    "productId": cart_item.product.id,
-                    "quantity": cart_item.quantity,
-                    "unitPrice": unit_price,
-                    "subtotal": round(subtotal, 2)
-                }
-            )
+            if product:
+                unit_price = product.price
+                subtotal = unit_price * cart_item.quantity
+                
+                order_item = OrderItem(
+                    id=str(__import__('uuid').uuid4()),
+                    order_id=order.id,
+                    product_id=product.id,
+                    quantity=cart_item.quantity,
+                    unit_price=unit_price,
+                    subtotal=round(subtotal, 2)
+                )
+                session.add(order_item)
+        
+        await session.commit()
         
         # Clear cart
-        await db.client.cartitem.delete_many(where={"cartId": cart.id})
+        result = await session.execute(select(CartItem).where(CartItem.cart_id == cart.id))
+        cart_items_to_delete = result.scalars().all()
+        
+        for item in cart_items_to_delete:
+            await session.delete(item)
+        
+        await session.commit()
         
         # Return order data
-        return await self._fetch_order_data(order.id)
+        return await self._fetch_order_data(session, order.id)
     
     async def get_user_orders(
         self,
+        session: AsyncSession,
         user_id: str,
         page: int = 1,
         per_page: int = 10
     ) -> Dict[str, Any]:
-        """
-        Get user's orders with pagination.
-        
-        Args:
-            user_id: User ID
-            page: Page number (1-indexed)
-            per_page: Items per page
-        
-        Returns:
-            {
-                'orders': [...],
-                'total': 25,
-                'page': 1,
-                'per_page': 10
-            }
-        """
+        """Get user's orders with pagination"""
         if page < 1:
             page = 1
         if per_page < 1 or per_page > 100:
             per_page = 10
         
         # Count total orders
-        total = await db.client.order.count(where={"userId": user_id})
-        
-        # Fetch all orders for user (will sort in Python)
-        all_orders = await db.client.order.find_many(
-            where={"userId": user_id},
-            include={"items": {"include": {"product": True}}}
+        result = await session.execute(
+            select(__import__('sqlalchemy').func.count(Order.id)).where(Order.user_id == user_id)
         )
+        total = result.scalar() or 0
         
-        # Sort by createdAt descending (newest first)
-        all_orders.sort(key=lambda o: o.createdAt, reverse=True)
+        # Fetch all orders for user
+        result = await session.execute(
+            select(Order).where(Order.user_id == user_id).order_by(Order.created_at.desc())
+        )
+        all_orders = result.scalars().all()
         
         # Apply pagination
         paginated_orders = all_orders[(page - 1) * per_page : page * per_page]
@@ -126,7 +120,7 @@ class OrderCore:
         # Format orders
         orders_data = []
         for order in paginated_orders:
-            orders_data.append(await self._format_order(order))
+            orders_data.append(await self._format_order(session, order))
         
         return {
             'orders': orders_data,
@@ -135,96 +129,83 @@ class OrderCore:
             'per_page': per_page
         }
     
-    async def get_order_details(self, user_id: str, order_id: str) -> Dict[str, Any]:
-        """
-        Get order details with items.
-        
-        Args:
-            user_id: User ID (for authorization)
-            order_id: Order ID
-        
-        Returns:
-            Order dictionary with all details
-        
-        Raises:
-            ValueError: If order not found or doesn't belong to user
-        """
-        order = await db.client.order.find_unique(
-            where={"id": order_id},
-            include={"items": {"include": {"product": True}}}
-        )
+    async def get_order_details(self, session: AsyncSession, user_id: str, order_id: str) -> Dict[str, Any]:
+        """Get order details with items"""
+        result = await session.execute(select(Order).where(Order.id == order_id))
+        order = result.scalar_one_or_none()
         
         if not order:
             raise ValueError(f"Order not found: {order_id}")
         
         # Verify user owns order
-        if order.userId != user_id:
+        if order.user_id != user_id:
             raise ValueError("Unauthorized: Order does not belong to user")
         
-        return await self._format_order(order)
+        return await self._format_order(session, order)
     
-    async def _format_order(self, order) -> Dict[str, Any]:
-        """
-        Format order record into API response format.
+    async def _format_order(self, session: AsyncSession, order: Order) -> Dict[str, Any]:
+        """Format order record into API response format"""
+        # Fetch order items
+        result = await session.execute(select(OrderItem).where(OrderItem.order_id == order.id))
+        order_items = result.scalars().all()
         
-        Helper method.
-        """
         items_data = []
-        for item in order.items:
-            items_data.append({
-                'id': item.id,
-                'product_id': item.product.id,
-                'product_name': item.product.name,
-                'product_image': item.product.image_url,
-                'quantity': item.quantity,
-                'unit_price': item.unitPrice,
-                'subtotal': item.subtotal
-            })
+        for item in order_items:
+            result = await session.execute(select(Product).where(Product.id == item.product_id))
+            product = result.scalar_one_or_none()
+            
+            if product:
+                items_data.append({
+                    'id': item.id,
+                    'product_id': product.id,
+                    'product_name': product.name,
+                    'product_image': product.image_url,
+                    'quantity': item.quantity,
+                    'unit_price': item.unit_price,
+                    'subtotal': item.subtotal
+                })
         
         return {
             'id': order.id,
-            'user_id': order.userId,
-            'status': order.status,
+            'user_id': order.user_id,
+            'status': order.status.value if order.status else "PENDING",
             'items': items_data,
-            'total_amount': order.totalAmount,
-            'shipping_address': order.shippingAddress,
+            'total_amount': order.total_amount,
+            'shipping_address': order.shipping_address,
             'notes': order.notes,
-            'created_at': order.createdAt,
-            'updated_at': order.updatedAt
+            'created_at': order.created_at,
+            'updated_at': order.updated_at
         }
     
-    async def _fetch_order_data(self, order_id: str) -> Dict[str, Any]:
-        """
-        Helper: Fetch order with items.
-        """
-        order = await db.client.order.find_unique(
-            where={"id": order_id},
-            include={"items": {"include": {"product": True}}}
-        )
+    async def _fetch_order_data(self, session: AsyncSession, order_id: str) -> Dict[str, Any]:
+        """Helper: Fetch order with items"""
+        result = await session.execute(select(Order).where(Order.id == order_id))
+        order = result.scalar_one_or_none()
         
         if not order:
             raise ValueError(f"Order not found: {order_id}")
         
-        return await self._format_order(order)
+        return await self._format_order(session, order)
     
-    async def update_order_status(self, order_id: str, new_status: str) -> Dict[str, Any]:
-        """
-        Update order status (admin only).
-        
-        Valid statuses: PENDING, CONFIRMED, SHIPPED, DELIVERED, CANCELLED
-        
-        Raises:
-            ValueError: If invalid status or order not found
-        """
+    async def update_order_status(self, session: AsyncSession, order_id: str, new_status: str) -> Dict[str, Any]:
+        """Update order status (admin only)"""
         valid_statuses = ["PENDING", "CONFIRMED", "SHIPPED", "DELIVERED", "CANCELLED"]
         
         if new_status not in valid_statuses:
             raise ValueError(f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
         
-        order = await db.client.order.update(
-            where={"id": order_id},
-            data={"status": new_status},
-            include={"items": {"include": {"product": True}}}
-        )
+        result = await session.execute(select(Order).where(Order.id == order_id))
+        order = result.scalar_one_or_none()
         
-        return await self._format_order(order)
+        if not order:
+            raise ValueError(f"Order not found: {order_id}")
+        
+        order.status = new_status
+        session.add(order)
+        await session.commit()
+        
+        return await self._fetch_order_data(session, order.id)
+
+
+# Singleton instance
+order_core = OrderCore()

@@ -1,9 +1,10 @@
 # 🌱 Nursery Backend - E-Commerce API
 
-A production-ready **FastAPI** backend for a nursery/plant e-commerce platform with comprehensive product management, shopping cart, order processing, payment integration, and admin dashboard.
+A production-ready **FastAPI** backend for a nursery/plant e-commerce platform with comprehensive product management, shopping cart, order processing, payment integration, AI plant care chatbot, and advanced admin dashboard.
 
-**Status:** 🚀 Phase 2A Implementation (Cart & Orders)  
+**Status:** 🚀 Phase 2A+ (Complete: Auth, Products, Cart, Orders, Payments, Admin, AI)  
 **Version:** 1.0.0  
+**Python:** 3.11+  
 **License:** MIT
 
 ---
@@ -11,208 +12,389 @@ A production-ready **FastAPI** backend for a nursery/plant e-commerce platform w
 ## 📖 Table of Contents
 
 - [Overview](#overview)
-- [Features](#features)
+- [Key Features](#key-features)
 - [Tech Stack](#tech-stack)
+- [System Architecture](#system-architecture)
 - [Prerequisites](#prerequisites)
-- [Quick Start](#quick-start)
-- [Installation](#installation)
+- [Installation & Setup](#installation--setup)
 - [Configuration](#configuration)
 - [Running the Application](#running-the-application)
-- [Docker Setup](#docker-setup)
-- [Database Setup](#database-setup)
-- [Project Architecture](#project-architecture)
+- [Docker Deployment](#docker-deployment)
+- [Database](#database)
 - [API Documentation](#api-documentation)
-- [Environment Variables](#environment-variables)
+  - [Authentication](#authentication)
+  - [Products & Categories](#products--categories)
+  - [Shopping Cart](#shopping-cart)
+  - [Orders](#orders)
+  - [Payments](#payments)
+  - [AI Chatbot](#ai-chatbot)
+  - [Admin Dashboard](#admin-dashboard)
+  - [Admin User Management](#admin-user-management)
+  - [Admin Order Management](#admin-order-management)
+  - [Admin Product Management](#admin-product-management)
+  - [Admin Category Management](#admin-category-management)
+  - [Admin Inventory Management](#admin-inventory-management)
+- [Data Models](#data-models)
+- [Authentication & Security](#authentication--security)
 - [Testing](#testing)
 - [Development Guide](#development-guide)
 - [Troubleshooting](#troubleshooting)
+- [Additional Resources](#additional-resources)
 
 ---
 
 ## Overview
 
-**Nursery Backend** is a complete REST API solution for an e-commerce platform specializing in plant and nursery products. It provides:
+**Nursery Backend** is a complete REST API solution built with FastAPI, SQLAlchemy, and PostgreSQL for managing a plant/nursery e-commerce platform. It combines modern async architecture with comprehensive business logic for handling users, products, shopping, orders, payments, and AI-assisted customer support.
 
-- 🔐 Secure user authentication and authorization with JWT
-- 🛍️ Full product catalog management with categories and filtering
-- 🛒 Shopping cart functionality with persistent storage
-- 📦 Order management and tracking
-- 💳 Payment processing with Razorpay integration
-- 👨‍💼 Advanced admin dashboard and controls
-- 📊 Analytics and activity logging
-- ⚡ Caching with Redis for optimal performance
-- 🔒 Rate limiting and security features
-- 📱 CORS support for multi-client integration
+### Core Capabilities
+
+✅ **User Management** - Registration, JWT authentication, role-based access control  
+✅ **Product Catalog** - Full CRUD with categories, detailed plant metadata, disease tracking  
+✅ **Shopping Cart** - Persistent user carts with quantity management  
+✅ **Order Management** - Complete lifecycle management with status tracking  
+✅ **Payment Processing** - Razorpay integration with webhook verification  
+✅ **AI Assistant** - Groq-powered plant care chatbot with conversation history  
+✅ **Admin Suite** - Dashboard, user management, inventory control, activity logs  
+✅ **Security** - Rate limiting, input validation, CORS, audit trails  
 
 ---
 
-## 🚀 Features
+## Key Features
 
-### User Management
-- ✅ **User Registration** - Email-based account creation
-- ✅ **JWT Authentication** - Secure access & refresh tokens
-- ✅ **Password Management** - Change passwords securely
-- ✅ **User Profiles** - Store user details and preferences
-- ✅ **Role-Based Access** - Admin and regular user roles
+### 🔐 Authentication & User Management
+- User registration with email validation
+- Secure login with JWT access + refresh tokens
+- Password management and secure hashing (bcrypt)
+- Role-based access control (CUSTOMER, ADMIN)
+- Account activation/deactivation
+- Refresh token tracking and revocation
+- Automatic admin account initialization
 
-### Product Catalog
-- ✅ **Product Management** - Create, read, update, delete products
-- ✅ **Categories** - Organize products by categories
-- ✅ **Product Filtering** - Filter by category, price range, attributes
-- ✅ **Plant-Specific Info** - Care instructions, watering needs, temperature range
-- ✅ **Disease Management** - Track and manage plant diseases
-- ✅ **Rich Product Data** - Images, descriptions, pricing
+### 🛍️ Product Catalog
+- Complete CRUD operations for products (admin-only)
+- Product categories with icons and descriptions
+- Plant-specific metadata:
+  - Care instructions and light requirements
+  - Watering frequency (Daily, Weekly, Bi-weekly, Monthly)
+  - Temperature ranges for optimal growth
+  - Scientific names for accuracy
+- Disease tracking with product relationships
+- Product inventory management with low-stock alerts
+- Advanced search and filtering by name, category, price
+- Pagination support for all list endpoints
 
-### Shopping & Orders
-- ✅ **Shopping Cart** - Add/remove items, manage quantities
-- ✅ **Persistent Cart** - Cart data saved per user
-- ✅ **Order Management** - Create, view, and track orders
-- ✅ **Order Status Tracking** - PENDING → CONFIRMED → SHIPPED → DELIVERED
-- ✅ **Order History** - View past orders
+### 🛒 Shopping Cart
+- One persistent cart per user
+- Add/remove products with quantity management
+- Real-time cart updates and total calculations
+- Cart item validation
+- Clear entire cart on order creation
 
-### Payments
-- ✅ **Razorpay Integration** - Secure payment processing
-- ✅ **Payment Verification** - Validate payment transactions
-- ✅ **Webhook Support** - Real-time payment status updates
-- ✅ **Demo Mode** - Auto-approval for testing
-- ✅ **Transaction Logging** - Complete payment audit trail
+### 📦 Order Management
+- Create orders directly from cart contents
+- Complete order status workflow:
+  - PENDING → CONFIRMED → SHIPPED → DELIVERED
+- Shipping address and delivery notes
+- Order item tracking with frozen pricing
+- Order history per user with pagination
+- Admin order status management
+- Order filtering and search capabilities
 
-### Admin Dashboard
-- ✅ **Dashboard Statistics** - User, order, product metrics
-- ✅ **User Management** - List, filter, activate/deactivate users
-- ✅ **Order Management** - View and manage customer orders
-- ✅ **Inventory Control** - Track product stock levels
-- ✅ **Activity Logs** - Audit trail of admin actions
-- ✅ **Category Management** - Create and manage product categories
+### 💳 Payment Processing
+- Razorpay payment gateway integration
+- Create payment orders for checkout flow
+- Payment verification with signature validation
+- Payment status tracking:
+  - PENDING → CONFIRMED/FAILED
+- Webhook support for real-time payment updates
+- Demo mode for development and testing
+- Complete transaction audit trail
+- Automatic payment order linking to orders
 
-### Performance & Security
-- ✅ **Redis Caching** - Fast data retrieval and caching
-- ✅ **Rate Limiting** - Prevent API abuse
-- ✅ **CORS Support** - Secure cross-origin requests
-- ✅ **Input Validation** - Pydantic data contracts
-- ✅ **Error Handling** - Comprehensive error responses
-- ✅ **Activity Logging** - Complete audit trail
+### 🤖 AI Plant Care Assistant
+- Groq API integration for intelligent responses
+- Specialized plant care advice and recommendations
+- Conversation management with full history
+- Start new conversations or continue existing ones
+- Message-level tracking with timestamps
+- Delete conversations and manage history
+- Real-time response capability
+
+### 👨‍💼 Admin Dashboard
+**Statistics & Metrics:**
+- Real-time user, order, and product metrics
+- Revenue tracking and analysis
+- Pending order counts
+- Active user statistics
+- Product performance data
+
+**User Management:**
+- List all users with advanced filtering
+- Search by name, email, phone
+- Filter by role and activation status
+- Activate/deactivate user accounts
+- View user detailed information
+
+**Order Management:**
+- View all orders with detailed information
+- Filter by status, payment status, user
+- Update order statuses
+- Track payment information
+- Admin order cancellation
+
+**Inventory Management:**
+- Monitor product stock levels
+- Low-stock alerts with configurable thresholds
+- Adjust quantities manually
+- Track stock by product
+- Bulk operations support
+
+**Category Management:**
+- Create and edit product categories
+- Manage category icons and descriptions
+- View products per category
+- Category organization
+
+**Activity Logging:**
+- Complete audit trail of admin actions
+- Timestamp and actor tracking
+- Action type categorization
+- Admin ID filtering
+- Full change history
+
+### 🔒 Security & Performance
+- **Async Operations** - Non-blocking database queries for high throughput
+- **Connection Pooling** - SQLAlchemy pool (20 connections, 0 overflow)
+- **Health Checks** - Pre-ping verification and database health monitoring
+- **Rate Limiting** - Configurable per-endpoint limits
+- **CORS Support** - Flexible cross-origin request handling
+- **Input Validation** - Pydantic v2 request/response contracts
+- **Global Error Handling** - Comprehensive exception responses
+- **Structured Logging** - Application and request logging
+- **Password Security** - bcrypt hashing with configurable iterations
 
 ---
 
 ## 🛠️ Tech Stack
 
-| Component | Technology | Version |
-|-----------|-----------|---------|
-| **Framework** | FastAPI | 0.109.0 |
-| **Server** | Uvicorn | 0.27.0 |
-| **ORM** | Prisma | 0.13.0 |
-| **Database** | MySQL | 8.0+ |
-| **Cache** | Redis | 7+ |
-| **Authentication** | JWT (PyJWT) | 3.3.0 |
-| **Password Hashing** | bcrypt | 1.7.4 |
-| **Validation** | Pydantic | 2.5.3 |
-| **Payment Gateway** | Razorpay | 1.4.1 |
-| **Testing** | pytest | 7.4.3 |
-| **Containerization** | Docker | Latest |
+| Component | Technology | Version | Purpose |
+|-----------|-----------|---------|---------|
+| **Framework** | FastAPI | 0.115.0 | REST API framework with async support |
+| **Server** | Uvicorn | 0.31.0 | ASGI server for running FastAPI |
+| **Database ORM** | SQLAlchemy | 2.0+ | Async ORM for database operations |
+| **Database Driver** | asyncpg | 0.29.0 | Async PostgreSQL driver |
+| **Database** | PostgreSQL | 14+ | Primary data store |
+| **Validation** | Pydantic | 2.6.0 | Request/response validation |
+| **Authentication** | PyJWT | 3.3.0 | JWT token generation and verification |
+| **Password Hashing** | passlib + bcrypt | 1.7.4 | Secure password storage |
+| **Payment Gateway** | Razorpay | 1.4.1 | Payment processing integration |
+| **AI API** | Groq | 0.9.0 | LLM for chatbot functionality |
+| **Configuration** | python-dotenv | 1.0.1 | Environment variable management |
+| **Testing** | pytest + pytest-asyncio | 8.3.4 | Async testing framework |
+| **HTTP Client** | httpx | 0.24.1+ | Async HTTP client for testing |
+| **Email Validation** | email-validator | 2.3.0 | Email format validation |
 
 ---
 
-## 📋 Prerequisites
+## System Architecture
 
-Ensure you have the following installed on your system:
+### Application Layers
 
-### Minimum Requirements
-- **Python** 3.11 or higher
-- **pip** (Python package manager)
-- **MySQL** 8.0 or higher
-- **Node.js** 18+ (for Prisma CLI)
+```
+┌─────────────────────────────────────────┐
+│     HTTP Clients (Mobile, Web, etc.)    │
+└─────────────────┬───────────────────────┘
+                  │
+┌─────────────────▼───────────────────────┐
+│    Controllers (HTTP Handlers)          │
+│    ├─ auth_controller                   │
+│    ├─ product_controller                │
+│    ├─ cart_controller                   │
+│    ├─ order_controller                  │
+│    ├─ payment_controller                │
+│    ├─ ai_controller                     │
+│    └─ admin_*_controllers               │
+└─────────────────┬───────────────────────┘
+         (Middleware: Auth, Rate-Limit)
+                  │
+┌─────────────────▼───────────────────────┐
+│    Services (Business Logic)            │
+│    ├─ auth_service                      │
+│    ├─ product_service                   │
+│    ├─ cart_service                      │
+│    ├─ order_service                     │
+│    ├─ payment_service                   │
+│    ├─ ai_service                        │
+│    ├─ admin_service                     │
+│    └─ analytics_service                 │
+└─────────────────┬───────────────────────┘
+                  │
+┌─────────────────▼───────────────────────┐
+│    Core Functions (Domain Logic)        │
+│    ├─ auth_core                         │
+│    ├─ product_core                      │
+│    ├─ cart_core                         │
+│    ├─ order_core                        │
+│    ├─ payment_core                      │
+│    └─ ai_core                           │
+└─────────────────┬───────────────────────┘
+                  │
+┌─────────────────▼───────────────────────┐
+│    Data Access Layer (ORM)              │
+│    └─ SQLAlchemy AsyncSession           │
+└─────────────────┬───────────────────────┘
+                  │
+┌─────────────────▼───────────────────────┐
+│    PostgreSQL Database                  │
+└─────────────────────────────────────────┘
+```
 
-### Optional but Recommended
-- **Redis** 7+ (for caching feature)
-- **Docker** & **Docker Compose** (for containerized setup)
-- **Git** (for version control)
+### Directory Structure
+
+```
+nursery-backend/
+├── src/
+│   ├── main.py                          # FastAPI app entry point
+│   ├── database.py                      # SQLAlchemy setup & session management
+│   │
+│   ├── controllers/                     # HTTP request handlers
+│   │   ├── auth_controller.py
+│   │   ├── product_controller.py
+│   │   ├── cart_controller.py
+│   │   ├── order_controller.py
+│   │   ├── payment_controller.py
+│   │   ├── ai_controller.py
+│   │   ├── dashboard_controller.py
+│   │   ├── admin_dashboard_controller.py
+│   │   ├── admin_user_controller.py
+│   │   ├── admin_order_controller.py
+│   │   ├── admin_product_controller.py
+│   │   ├── admin_category_controller.py
+│   │   ├── admin_inventory_controller.py
+│   │   └── admin_setup_controller.py
+│   │
+│   ├── services/                        # Business logic layer
+│   │   ├── auth_service.py
+│   │   ├── product_service.py
+│   │   ├── cart_service.py
+│   │   ├── order_service.py
+│   │   ├── payment_service.py
+│   │   ├── ai_service.py
+│   │   ├── admin_service.py
+│   │   └── analytics_service.py
+│   │
+│   ├── core/                            # Domain-specific logic
+│   │   ├── auth_core.py
+│   │   ├── product_core.py
+│   │   ├── cart_core.py
+│   │   ├── order_core.py
+│   │   ├── payment_core.py
+│   │   └── ai_core.py
+│   │
+│   ├── models/                          # SQLAlchemy ORM models
+│   │   ├── base.py                      # Base model & enums
+│   │   ├── user.py                      # User & RefreshToken
+│   │   ├── product.py                   # Product, Category
+│   │   ├── cart.py                      # Cart, CartItem
+│   │   ├── order.py                     # Order, OrderItem
+│   │   ├── payment.py                   # Payment
+│   │   ├── ai_chat.py                   # AIChatConversation, AIChatMessage
+│   │   └── admin.py                     # ProductInventory, AdminLog
+│   │
+│   ├── data_contracts/                  # Pydantic request/response models
+│   │   ├── api_request_response.py
+│   │   └── admin_request_response.py
+│   │
+│   ├── middlewares/                     # Custom middleware
+│   │   └── auth_middleware.py           # JWT authentication middleware
+│   │
+│   ├── utilities/                       # Helper utilities
+│   │   ├── config_manager.py
+│   │   ├── admin_init.py
+│   │   ├── rate_limiter.py
+│   │   └── id_generator.py
+│   │
+│   └── tests/                           # Test suites
+│       ├── test_auth.py
+│       ├── test_models.py
+│       └── test_api.py
+│
+├── config/                              # Environment-specific configs
+│   ├── dev_app_config.json
+│   ├── qa_app_config.json
+│   └── prod_app_config.json
+│
+├── prisma/                              # Prisma schema (legacy)
+│   └── schema.prisma
+│
+├── sample_requests/                     # API request examples
+│   ├── api_requests.http
+│   └── admin_requests.http
+│
+├── docs/                                # Documentation
+│   ├── PHASE_2A_BACKEND_FOUNDATION.md
+│   ├── ADMIN_PANEL_API.md
+│   └── DEPLOYMENT_CHECKLIST.md
+│
+├── requirements.txt                     # Python dependencies
+├── pyproject.toml                       # Project metadata
+├── Dockerfile                           # Container image definition
+├── docker-compose.yml                   # Multi-container setup
+├── run_app.py                           # Application launcher
+├── pytest.ini                           # Test configuration
+└── README.md                            # This file
+```
+
+---
+
+## Prerequisites
 
 ### System Requirements
-- **RAM:** Minimum 2GB, Recommended 4GB+
-- **Disk Space:** Minimum 1GB
 - **OS:** Windows, macOS, or Linux
+- **RAM:** 2GB minimum, 4GB+ recommended
+- **Disk:** 1GB+ available space
+
+### Software Requirements
+- **Python:** 3.11 or higher
+- **pip:** Python package manager
+- **PostgreSQL:** 14 or higher
+- **Git:** Version control (optional)
+
+### Optional
+
+- **Node.js:** 18+ (for Prisma tools)
+- **Docker** & **Docker Compose:** For containerized setup
+- **PostgreSQL Client:** `psql` command-line tool
+- **Postman/Insomnia:** API testing tools
+- **VS Code:** Recommended code editor
+
+### Account Requirements
+- **Razorpay Account:** For payment integration (sandbox credentials for testing)
+- **Groq API Key:** For AI chatbot functionality
 
 ---
 
-## 🚀 Quick Start
+## Installation & Setup
 
-### For the Impatient (Using Docker)
+### Step 1: Clone Repository
 
 ```bash
-# Clone repository
 git clone <repository-url>
 cd nursery-backend
-
-# Copy environment file
-cp .env.example .env
-
-# Start all services with Docker Compose
-docker-compose up -d
-
-# View logs
-docker-compose logs -f app
-
-# API will be available at http://localhost:8000
 ```
 
-### For Local Development
+### Step 2: Create & Activate Virtual Environment
 
+#### Windows
 ```bash
-# Clone repository
-git clone <repository-url>
-cd nursery-backend
-
-# Create virtual environment
 python -m venv venv
-
-# Activate virtual environment
-# On Windows:
 venv\Scripts\activate
-# On macOS/Linux:
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Copy and configure environment
-cp .env.example .env
-# Edit .env with your database credentials
-
-# Initialize database
-python scripts/setup_db.py
-
-# Seed sample data (optional)
-python scripts/seed_db.py
-
-# Run the application
-python run_app.py
-
-# API will be available at http://localhost:8000
 ```
 
----
-
-## 💾 Installation
-
-### Step 1: Clone the Repository
-
+#### macOS/Linux
 ```bash
-git clone <repository-url>
-cd nursery-backend
-```
-
-### Step 2: Create Python Virtual Environment
-
-```bash
-# Create virtual environment
-python -m venv venv
-
-# Activate it
-# Windows:
-venv\Scripts\activate
-
-# macOS/Linux:
+python3 -m venv venv
 source venv/bin/activate
 ```
 
@@ -222,238 +404,210 @@ source venv/bin/activate
 # Upgrade pip
 pip install --upgrade pip
 
-# Install all required packages
+# Install all requirements
 pip install -r requirements.txt
-
-# Generate Prisma client
-prisma generate
 ```
 
-### Step 4: Configure Environment Variables
+### Step 4: Setup Environment Variables
 
 ```bash
-# Copy example environment file
+# Copy example file
 cp .env.example .env
 
-# Edit .env file with your settings
-# nano .env  (or use your favorite editor)
+# Edit with your values
+# nano .env  (or use your editor)
 ```
 
-**Key configurations to set:**
+**Required environment variables:**
+
 ```env
-DATABASE_URL=mysql://root:password@127.0.0.1:3306/nursery_db
-REDIS_HOST=localhost
-REDIS_PORT=6379
-JWT_SECRET_KEY=<your-secure-random-key>
-RAZORPAY_KEY_ID=<your-razorpay-key>
-RAZORPAY_KEY_SECRET=<your-razorpay-secret>
+# Application
+APP_NAME="Nursery Backend"
+ENVIRONMENT=dev
+DEBUG=true
+
+# Database (PostgreSQL)
+DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/nursery_db
+
+# JWT Configuration
+JWT_SECRET_KEY=<generate-with-python-command>
+JWT_ALGORITHM=HS256
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
+JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
+
+# Payment (Razorpay)
+RAZORPAY_KEY_ID=rzp_test_xxxxxx
+RAZORPAY_KEY_SECRET=xxxxxxxxxxxx
+RAZORPAY_WEBHOOK_SECRET=webhook_secret
+
+# AI (Groq)
+GROQ_API_KEY=gsk_xxxxxxxxxxxxx
+
+# Admin Account
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=Admin@123456
+
+# Optional: Rate limiting
+RATE_LIMIT_ENABLED=true
+```
+
+**Generate JWT Secret Key:**
+
+```bash
+# Option 1: Python
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+
+# Option 2: OpenSSL
+openssl rand -hex 32
 ```
 
 ### Step 5: Initialize Database
 
 ```bash
-# Create database schema
-python scripts/setup_db.py
+# Create database (from PostgreSQL terminal)
+createdb nursery_db
 
-# Expected output:
-# ✓ Connected to MySQL database
-# ✓ Tables created successfully
-# ✅ Database initialized
+# Or from psql
+psql -U postgres
+CREATE DATABASE nursery_db;
+\q
+
+# Run application (it will auto-create tables)
+python run_app.py
 ```
 
-### Step 6: (Optional) Seed Initial Data
+### Step 6: Create Admin Account (First Run)
 
-```bash
-# Populate with sample categories and products
-python scripts/seed_db.py
-
-# Expected output:
-# ✅ Connected to database
-# ✅ Categories created
-# ✅ Products created
-# ✅ Database seeded successfully
-```
+The admin account is automatically created on first application startup:
+- Email: value of `ADMIN_EMAIL` from .env
+- Password: value of `ADMIN_PASSWORD` from .env
 
 ---
 
-## ⚙️ Configuration
+## Configuration
 
-### Environment Variables
+### Database Configuration
 
-Create a `.env` file in the project root with the following variables:
+```python
+# src/database.py
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+asyncpg://user:password@localhost:5432/nursery_db"
+)
 
-```env
-# Application Settings
-APP_NAME=FastAPI Auth Service
-APP_VERSION=1.0.0
-ENVIRONMENT=dev                    # dev, qa, or production
-DEBUG=True                         # Set to False in production
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=False,           # Set True for SQL logging
+    pool_size=20,         # Connection pool size
+    max_overflow=0,       # Max overflow connections
+    pool_pre_ping=True    # Health check before use
+)
+```
 
-# Server Settings
-HOST=0.0.0.0
-PORT=8000
+### JWT Configuration
 
-# Database Configuration
-DATABASE_URL=mysql://root:password@127.0.0.1:3306/nursery_db
+```python
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+JWT_ALGORITHM = "HS256"
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES = 30
+JWT_REFRESH_TOKEN_EXPIRE_DAYS = 7
+```
 
-# JWT Securities
-JWT_SECRET_KEY=<generate-strong-random-string>
-JWT_ALGORITHM=HS256
-JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
-JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
+### CORS Configuration
 
-# Redis Configuration (Optional)
-REDIS_HOST=localhost
-REDIS_PORT=6379
-REDIS_DB=0
-REDIS_PASSWORD=
-REDIS_ENABLED=False                # Set to True to enable caching
-
-# Rate Limiting
-RATE_LIMIT_ENABLED=True
-RATE_LIMIT_REQUESTS=100            # requests per window
-RATE_LIMIT_WINDOW_SECONDS=60       # time window in seconds
-
-# CORS Settings
-CORS_ORIGINS=["http://localhost:3000", "http://localhost:8000"]
-
-# Admin Account (auto-created on first run)
-ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=Admin@123
-ADMIN_FIRST_NAME=Admin
-ADMIN_LAST_NAME=User
-
-# Payment Gateway (Razorpay)
-RAZORPAY_KEY_ID=rzp_test_xxxxxxxxxx
-RAZORPAY_KEY_SECRET=xxxxxxxxxxxx
-RAZORPAY_WEBHOOK_SECRET=webhook_secret
-
-# Demo Mode (auto-approve all payments for testing)
-DEMO_MODE=true
+```python
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],           # Change in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 ```
 
 ### Config Files
 
-The application uses config files for environment-specific settings:
+Environment-specific configuration in JSON files:
 
-- `config/dev_app_config.json` - Development configuration
-- `config/qa_app_config.json` - QA configuration
-- `config/prod_app_config.json` - Production configuration
+```json
+{
+  "app_name": "Nursery Backend",
+  "version": "1.0.0",
+  "debug": false,
+  "database": {
+    "pool_size": 20
+  },
+  "jwt": {
+    "expire_minutes": 30
+  },
+  "rate_limit": {
+    "enabled": true,
+    "requests": 1000,
+    "window_seconds": 3600
+  }
+}
+```
 
 ---
 
-## 🏃 Running the Application
+## Running the Application
 
 ### Development Mode
 
 ```bash
-# Using run_app.py (recommended for development)
+# Using run_app.py (recommended)
 python run_app.py
 
-# Output:
-# 🚀 Starting FastAPI Auth Service...
-# ✅ All services connected successfully
-# INFO:     Uvicorn running on http://0.0.0.0:8000
-# INFO:     Press CTRL+C to quit
-```
-
-### With Automatic Reload
-
-```bash
-# Using uvicorn directly with auto-reload
+# Using uvicorn directly with reload
 uvicorn src.main:app --reload --host 0.0.0.0 --port 8000 --log-level info
 ```
 
 ### Production Mode
 
 ```bash
-# Using Gunicorn with Uvicorn workers
+# Set environment
 export ENVIRONMENT=production
-export DEBUG=False
-gunicorn src.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --log-level info
+export DEBUG=false
+
+# Run with Gunicorn + Uvicorn
+gunicorn src.main:app -w 4 -k uvicorn.workers.UvicornWorker \
+  --bind 0.0.0.0:8000 --log-level info
 ```
 
-### Access the Application
+### Access Points
 
-Once running, access:
+Once running:
 
-- **🔗 API Base URL:** `http://localhost:8000`
-- **📖 Interactive API Docs (Swagger UI):** `http://localhost:8000/docs`
-- **📍 Alternative API Docs (ReDoc):** `http://localhost:8000/redoc`
-- **📝 OpenAPI Schema:** `http://localhost:8000/openapi.json`
+- **API:** `http://localhost:8000`
+- **Swagger UI (Interactive Docs):** `http://localhost:8000/docs`
+- **ReDoc (API Documentation):** `http://localhost:8000/redoc`
+- **OpenAPI Schema:** `http://localhost:8000/openapi.json`
+- **Health Check:** `http://localhost:8000/health`
 
 ---
 
-## 🐳 Docker Setup
+## Docker Deployment
 
-### Using Docker Compose (Recommended)
-
-The project includes a complete `docker-compose.yml` with MySQL, Redis, and the FastAPI application.
-
-#### Start All Services
+### Using Docker Compose
 
 ```bash
-# Build and start containers
+# Build and start all services
 docker-compose up -d
 
-# Expected output:
-# Creating auth_mysql ... done
-# Creating auth_redis ... done
-# Creating auth_app ... done
-```
-
-#### View Logs
-
-```bash
-# View real-time application logs
+# View logs
 docker-compose logs -f app
 
-# View MySQL logs
-docker-compose logs -f mysql
+# Scale application
+docker-compose up -d --scale app=3
 
-# View Redis logs
-docker-compose logs -f redis
-```
-
-#### Stop Services
-
-```bash
-# Stop all running containers
+# Stop all services
 docker-compose down
 
-# Stop and remove volumes (resets database)
+# Remove volumes (reset database)
 docker-compose down -v
 ```
 
-#### Rebuild Containers
-
-```bash
-# Rebuild if you've changed dependencies
-docker-compose up -d --build
-```
-
-### Docker Compose Configuration
-
-The `docker-compose.yml` provides:
-
-```yaml
-Services:
-  - MySQL 8.0 (Database)
-    - Port: 3306
-    - Default Database: auth_db
-    - Credentials: root/root
-  
-  - Redis 7 (Cache)
-    - Port: 6379
-    - Persistence: Enabled
-  
-  - FastAPI Application
-    - Port: 8000
-    - Reload: Enabled for development
-    - Auto-depends on MySQL and Redis health
-```
-
-### Build Custom Docker Image
+### Using Docker Build
 
 ```bash
 # Build image
@@ -461,192 +615,67 @@ docker build -t nursery-backend:latest .
 
 # Run container
 docker run -p 8000:8000 \
-  -e DATABASE_URL="mysql://root:password@host:3306/nursery_db" \
+  -e DATABASE_URL="postgresql+asyncpg://user:pass@host:5432/db" \
+  -e JWT_SECRET_KEY="your-secret" \
+  -e RAZORPAY_KEY_ID="..." \
+  -e RAZORPAY_KEY_SECRET="..." \
   nursery-backend:latest
 ```
 
----
+### Docker Compose Services
 
-## 📊 Database Setup
-
-### Database Schema Overview
-
-The application uses Prisma ORM with the following main tables:
-
-```sql
-Tables:
-  ├── users              - User accounts and authentication
-  ├── categories         - Product categories
-  ├── products           - Product catalog
-  ├── product_diseases   - Plant disease information
-  ├── cart              - User shopping carts
-  ├── cart_items        - Items in shopping cart
-  ├── orders            - Customer orders
-  ├── order_items       - Items in orders
-  └── refresh_tokens    - JWT refresh token tracking
-```
-
-### Initialize Database Manually
-
-```bash
-# Using the provided setup script
-python scripts/setup_db.py
-
-# Tables created:
-# ✓ users
-# ✓ categories
-# ✓ products
-# ✓ product_diseases
-# ✓ cart
-# ✓ cart_items
-# ✓ orders
-# ✓ order_items
-# ✓ refresh_tokens
-```
-
-### Using Prisma Directly
-
-```bash
-# Generate Prisma client
-prisma generate
-
-# Migrate database
-prisma migrate dev --name init
-
-# View database in Prisma Studio
-prisma studio
-```
-
-### Seed Sample Data
-
-```bash
-# Populate with sample categories and products
-python scripts/seed_db.py
-
-# Creates:
-# - 5 product categories
-# - 10+ sample products
-# - Category icons and descriptions
+```yaml
+Services:
+  - FastAPI Application (Port 8000)
+  - PostgreSQL Database (Port 5432)
+  - (Optional) Redis Cache (Port 6379)
 ```
 
 ---
 
-## 🏗️ Project Architecture
+## Database
 
-### Directory Structure
+### Schema Overview
 
-```
-nursery-backend/
-├── src/                          # Main application source
-│   ├── __init__.py
-│   ├── main.py                  # Application entry point & route setup
-│   │
-│   ├── controllers/             # HTTP request handlers
-│   │   ├── auth_controller.py
-│   │   ├── product_controller.py
-│   │   ├── cart_controller.py
-│   │   ├── order_controller.py
-│   │   ├── payment_controller.py
-│   │   ├── admin_user_controller.py
-│   │   ├── admin_order_controller.py
-│   │   ├── admin_dashboard_controller.py
-│   │   └── admin_inventory_controller.py
-│   │
-│   ├── services/                # Business logic layer
-│   │   ├── auth_service.py
-│   │   ├── product_service.py
-│   │   ├── cart_service.py
-│   │   ├── order_service.py
-│   │   ├── payment_service.py
-│   │   ├── admin_service.py
-│   │   └── analytics_service.py
-│   │
-│   ├── core/                    # Core functionality modules
-│   │   ├── auth_core.py
-│   │   ├── cart_core.py
-│   │   ├── order_core.py
-│   │   ├── payment_core.py
-│   │   └── product_core.py
-│   │
-│   ├── data_contracts/          # Request/Response models (Pydantic)
-│   │   ├── api_request_response.py
-│   │   └── admin_request_response.py
-│   │
-│   ├── middlewares/             # Custom middleware
-│   │   └── auth_middleware.py   # JWT verification & authorization
-│   │
-│   ├── plugins/                 # External service integrations
-│   │   └── database.py          # Prisma database connection
-│   │
-│   ├── utilities/               # Helper utilities
-│   │   ├── config_manager.py    # Configuration loading
-│   │   ├── cache_manager.py     # Redis caching
-│   │   ├── security.py          # Password hashing & JWT utilities
-│   │   ├── rate_limiter.py      # Rate limiting
-│   │   ├── admin_init.py        # Admin initialization
-│   │   └── admin_setup.py       # Admin setup utilities
-│   │
-│   └── tests/                   # Test suites
-│       ├── unit/                # Unit tests
-│       └── integration/         # Integration tests
-│
-├── scripts/                      # Utility scripts
-│   ├── setup_db.py             # Initialize database schema
-│   ├── seed_db.py              # Seed sample data
-│   └── init_db.py              # Database initialization utilities
-│
-├── config/                       # Environment configurations
-│   ├── dev_app_config.json
-│   ├── qa_app_config.json
-│   └── prod_app_config.json
-│
-├── prisma/                       # Database schema
-│   ├── schema.prisma           # Prisma ORM schema
-│   └── add_cart_orders.sql     # Additional SQL migrations
-│
-├── sample_requests/             # API request examples
-│   ├── api_requests.http       # Regular API requests
-│   └── admin_requests.http     # Admin API requests
-│
-├── docker-compose.yml           # Docker Compose configuration
-├── Dockerfile                   # Docker image definition
-├── requirements.txt             # Python dependencies
-├── pytest.ini                   # Pytest configuration
-├── run_app.py                   # Application runner
-├── .env.example                 # Environment variables template
-└── README.md                    # This file
+**Core Tables:**
+
+- **users** - User accounts with roles (CUSTOMER, ADMIN)
+- **refresh_tokens** - JWT refresh token tracking
+- **categories** - Product categories with metadata
+- **products** - Product catalog with detailed attributes
+- **product_diseases** - Plant diseases and associations
+- **product_inventory** - Stock levels and thresholds
+- **carts** - Per-user shopping carts
+- **cart_items** - Items in shopping carts
+- **orders** - Customer orders with status
+- **order_items** - Items in completed orders
+- **payments** - Razorpay payment tracking
+- **ai_chat_conversations** - Chatbot conversation history
+- **ai_chat_messages** - Messages within conversations
+- **admin_logs** - Admin activity audit trail
+
+### Initialize Database
+
+```bash
+# Auto-initialization on app startup
+python run_app.py
+
+# The app creates tables from SQLAlchemy models automatically
 ```
 
-### Architecture Pattern: MVC + Services
+### View Database
 
-The application follows a **Model-View-Controller** pattern with a **Services layer**:
-
+```bash
+# Using psql
+psql -U user -d nursery_db
+\dt                      # List tables
+\d users                 # Show table structure
+SELECT * FROM users;     # Query data
 ```
-HTTP Request
-    ↓
-Controllers (route handlers)
-    ↓
-Services (business logic)
-    ↓
-Core (core functionality)
-    ↓
-Prisma ORM (database layer)
-    ↓
-MySQL Database
-```
-
-**Layer Responsibilities:**
-
-- **Controllers:** Handle HTTP requests/responses, input validation, authentication
-- **Services:** Implement business logic, data transformation, service orchestration
-- **Core:** Core domain functionality, algorithms, calculations
-- **Data Contracts:** Pydantic models for request/response validation
-- **Middleware:** Cross-cutting concerns (auth, rate limiting, CORS)
-- **Utilities:** Reusable helper functions (caching, security, configuration)
 
 ---
 
-## 📚 API Documentation
+## API Documentation
 
 ### Base URL
 
@@ -654,198 +683,904 @@ MySQL Database
 http://localhost:8000
 ```
 
-### Interactive API Documentation
-
-- **Swagger UI:** `http://localhost:8000/docs`
-- **ReDoc:** `http://localhost:8000/redoc`
-
 ### Authentication
 
-All protected endpoints require JWT token in the Authorization header:
+Protected endpoints require JWT token in header:
 
 ```http
 Authorization: Bearer <access_token>
 ```
 
-### API Endpoints Summary
+### Response Format
 
-#### Authentication (`/api/v1/auth`)
+All responses follow this format:
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/auth/register` | Register new user |
-| POST | `/auth/login` | Login and get tokens |
-| POST | `/auth/refresh` | Refresh access token |
-| POST | `/auth/logout` | Logout user |
-| PUT | `/auth/change-password` | Change password |
+```json
+{
+  "success": true,
+  "data": {...},
+  "message": "Operation successful"
+}
+```
 
-#### Products (`/api/v1/products`)
+---
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/products` | List all products with pagination |
-| GET | `/products/{id}` | Get product details |
-| GET | `/products/category/{category_id}` | Get products by category |
-| GET | `/categories` | List all categories |
+## API Endpoints
 
-#### Cart (`/api/v1/cart`)
+### Authentication
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/cart` | Get user's shopping cart |
-| POST | `/cart/add` | Add product to cart |
-| PUT | `/cart/update/{item_id}` | Update cart item quantity |
-| DELETE | `/cart/remove/{item_id}` | Remove item from cart |
-| DELETE | `/cart/clear` | Clear entire cart |
-
-#### Orders (`/api/v1/orders`)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/orders` | Create order from cart |
-| GET | `/orders` | Get user's orders |
-| GET | `/orders/{id}` | Get order details |
-| PUT | `/orders/{id}/cancel` | Cancel order |
-
-#### Payments (`/api/v1/payments`)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/payments/create-order` | Create Razorpay order |
-| POST | `/payments/verify` | Verify payment |
-| POST | `/webhooks/razorpay` | Razorpay webhook |
-
-#### Admin Dashboard (`/api/v1/admin`)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/admin/dashboard/statistics` | Dashboard statistics |
-| GET | `/admin/users` | List users |
-| GET | `/admin/users/{id}` | Get user details |
-| PUT | `/admin/users/{id}/status` | Update user status |
-| GET | `/admin/orders` | List orders |
-| POST | `/admin/products` | Create product |
-| GET | `/admin/categories` | List categories |
-| GET | `/admin/dashboard/activity-logs` | View activity logs |
-
-### Example Requests
-
-See [sample_requests/api_requests.http](sample_requests/api_requests.http) for complete request examples.
-
-**Register User:**
+**Register User**
 ```http
 POST /api/v1/auth/register
 Content-Type: application/json
 
 {
   "email": "user@example.com",
-  "password": "SecurePassword123",
+  "password": "SecurePass123",
   "first_name": "John",
   "last_name": "Doe"
 }
+
+Response: 201 Created
+{
+  "id": "uuid",
+  "email": "user@example.com",
+  "access_token": "...",
+  "refresh_token": "..."
+}
 ```
 
-**Login:**
+**Login**
 ```http
 POST /api/v1/auth/login
 Content-Type: application/json
 
 {
   "email": "user@example.com",
-  "password": "SecurePassword123"
+  "password": "SecurePass123"
+}
+
+Response: 200 OK
+{
+  "access_token": "...",
+  "refresh_token": "...",
+  "token_type": "bearer",
+  "expires_in": 1800
 }
 ```
 
-**Add to Cart:**
+**Refresh Token**
+```http
+POST /api/v1/auth/refresh
+Content-Type: application/json
+
+{
+  "refresh_token": "..."
+}
+
+Response: 200 OK
+{
+  "access_token": "...",
+  "token_type": "bearer"
+}
+```
+
+**Get Current User**
+```http
+GET /api/v1/auth/me
+Authorization: Bearer <token>
+
+Response: 200 OK
+{
+  "id": "uuid",
+  "email": "user@example.com",
+  "first_name": "John",
+  "role": "CUSTOMER"
+}
+```
+
+**Change Password**
+```http
+POST /api/v1/auth/change-password
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "old_password": "OldPass123",
+  "new_password": "NewPass123"
+}
+
+Response: 200 OK
+```
+
+**Logout**
+```http
+POST /api/v1/auth/logout
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "refresh_token": "..."
+}
+
+Response: 200 OK
+```
+
+---
+
+### Products & Categories
+
+**List Products**
+```http
+GET /api/v1/products?page=1&per_page=10&category_id=cat123&search=monstera
+
+Response: 200 OK
+{
+  "products": [...],
+  "total": 45,
+  "page": 1,
+  "per_page": 10
+}
+```
+
+**Get Product Details**
+```http
+GET /api/v1/products/{product_id}
+
+Response: 200 OK
+{
+  "id": "prod123",
+  "name": "Monstera Deliciosa",
+  "scientific_name": "Monstera deliciosa",
+  "price": 499.99,
+  "description": "...",
+  "care_instructions": "...",
+  "light_requirements": "Bright Indirect",
+  "watering_frequency": "Weekly",
+  "temperature_range": "18-24°C",
+  "image_url": "...",
+  "category": {...},
+  "common_diseases": [...]
+}
+```
+
+**List Categories**
+```http
+GET /api/v1/categories
+
+Response: 200 OK
+{
+  "categories": [
+    {
+      "id": "cat1",
+      "name": "Indoor Plants",
+      "slug": "indoor-plants",
+      "description": "...",
+      "icon": "🌿"
+    }
+  ],
+  "total": 5
+}
+```
+
+---
+
+### Shopping Cart
+
+**Get Cart**
+```http
+GET /api/v1/cart
+Authorization: Bearer <token>
+
+Response: 200 OK
+{
+  "id": "cart123",
+  "user_id": "user456",
+  "items": [
+    {
+      "id": "item1",
+      "product_id": "prod123",
+      "product_name": "Monstera",
+      "quantity": 2,
+      "price": 499.99,
+      "subtotal": 999.98
+    }
+  ],
+  "total": 999.98,
+  "item_count": 2
+}
+```
+
+**Add to Cart**
 ```http
 POST /api/v1/cart/add
 Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "product_id": "product-123",
+  "product_id": "prod123",
   "quantity": 2
+}
+
+Response: 200 OK
+{
+  "id": "cart123",
+  "items": [...],
+  "total": 999.98
 }
 ```
 
-**Create Order:**
+**Update Cart Item**
+```http
+PUT /api/v1/cart/items/{item_id}
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "quantity": 3
+}
+
+Response: 200 OK
+```
+
+**Remove from Cart**
+```http
+DELETE /api/v1/cart/items/{item_id}
+Authorization: Bearer <token>
+
+Response: 200 OK
+```
+
+**Clear Cart**
+```http
+DELETE /api/v1/cart
+Authorization: Bearer <token>
+
+Response: 200 OK
+```
+
+---
+
+### Orders
+
+**Create Order**
 ```http
 POST /api/v1/orders
 Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "shipping_address": "123 Main St, City, State 12345"
+  "shipping_address": "123 Main St, City, State 12345",
+  "notes": "Please deliver after 6 PM"
+}
+
+Response: 201 Created
+{
+  "id": "order123",
+  "user_id": "user456",
+  "status": "PENDING",
+  "total_amount": 999.98,
+  "items": [...],
+  "created_at": "2024-01-15T10:30:00Z"
+}
+```
+
+**Get User Orders**
+```http
+GET /api/v1/orders?page=1&per_page=10
+Authorization: Bearer <token>
+
+Response: 200 OK
+{
+  "orders": [...],
+  "total": 5,
+  "page": 1
+}
+```
+
+**Get Order Details**
+```http
+GET /api/v1/orders/{order_id}
+Authorization: Bearer <token>
+
+Response: 200 OK
+{
+  "id": "order123",
+  "status": "CONFIRMED",
+  "items": [...]
 }
 ```
 
 ---
 
-## 🔐 Environment Variables
+### Payments
 
-### Required Variables
+**Create Payment Order**
+```http
+POST /api/v1/payments/create-order
+Authorization: Bearer <token>
+Content-Type: application/json
 
-| Variable | Description | Example | Required |
-|----------|-----------|---------|----------|
-| `DATABASE_URL` | MySQL database connection string | `mysql://root:pass@localhost:3306/nursery_db` | ✅ |
-| `JWT_SECRET_KEY` | Secret key for JWT signing | `your-secure-random-key` | ✅ |
-| `RAZORPAY_KEY_ID` | Razorpay API key ID | `rzp_test_xxxx` | ✅ |
-| `RAZORPAY_KEY_SECRET` | Razorpay API secret | `xxxxx` | ✅ |
+{
+  "order_id": "order123",
+  "amount": 999.98
+}
 
-### Optional Variables
+Response: 200 OK
+{
+  "razorpay_order_id": "order_rzp123",
+  "amount": 999.98,
+  "currency": "INR",
+  "status": "PENDING"
+}
+```
 
-| Variable | Description | Default | Optional |
-|----------|-----------|---------|----------|
-| `ENVIRONMENT` | Environment mode | `dev` | ✅ |
-| `DEBUG` | Enable debug mode | `True` | ✅ |
-| `PORT` | Server port | `8000` | ✅ |
-| `HOST` | Server host | `0.0.0.0` | ✅ |
-| `REDIS_ENABLED` | Enable Redis caching | `False` | ✅ |
-| `REDIS_HOST` | Redis server host | `localhost` | ✅ |
-| `REDIS_PORT` | Redis server port | `6379` | ✅ |
-| `RATE_LIMIT_ENABLED` | Enable rate limiting | `True` | ✅ |
-| `RATE_LIMIT_REQUESTS` | Max requests per window | `100` | ✅ |
-| `RATE_LIMIT_WINDOW_SECONDS` | Rate limit window | `60` | ✅ |
+**Verify Payment**
+```http
+POST /api/v1/payments/verify
+Authorization: Bearer <token>
+Content-Type: application/json
 
-### Generate JWT Secret Key
+{
+  "razorpay_order_id": "order_rzp123",
+  "razorpay_payment_id": "pay_xxxxx",
+  "razorpay_signature": "signature_xxxxx"
+}
 
-```bash
-# Option 1: Using Python
-python -c "import secrets; print(secrets.token_urlsafe(32))"
-
-# Option 2: Using OpenSSL
-openssl rand -hex 32
+Response: 200 OK
+{
+  "status": "CONFIRMED",
+  "message": "Payment verified successfully"
+}
 ```
 
 ---
 
-## 🧪 Testing
+### AI Chatbot
+
+**Send Message**
+```http
+POST /api/v1/ai/chat
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "message": "How often should I water my monstera?",
+  "conversation_id": null
+}
+
+Response: 200 OK
+{
+  "conversation_id": "conv123",
+  "message_id": "msg456",
+  "response": "Monstera plants prefer...",
+  "created_at": "2024-01-15T10:30:00Z"
+}
+```
+
+**Get Conversations**
+```http
+GET /api/v1/ai/conversations?limit=50
+Authorization: Bearer <token>
+
+Response: 200 OK
+{
+  "conversations": [
+    {
+      "id": "conv123",
+      "created_at": "2024-01-15T10:30:00Z",
+      "message_count": 5
+    }
+  ]
+}
+```
+
+**Get Conversation Details**
+```http
+GET /api/v1/ai/conversations/{conversation_id}
+Authorization: Bearer <token>
+
+Response: 200 OK
+{
+  "id": "conv123",
+  "messages": [
+    {
+      "id": "msg1",
+      "role": "user",
+      "content": "...",
+      "created_at": "..."
+    },
+    {
+      "id": "msg2",
+      "role": "assistant",
+      "content": "...",
+      "created_at": "..."
+    }
+  ]
+}
+```
+
+**Delete Conversation**
+```http
+DELETE /api/v1/ai/conversations/{conversation_id}
+Authorization: Bearer <token>
+
+Response: 200 OK
+```
+
+---
+
+### Admin Dashboard
+
+**Get Dashboard Statistics**
+```http
+GET /api/v1/admin/dashboard/statistics
+Authorization: Bearer <admin_token>
+
+Response: 200 OK
+{
+  "total_users": 150,
+  "active_users": 95,
+  "total_orders": 380,
+  "pending_orders": 12,
+  "total_revenue": 95000.00,
+  "average_order_value": 250.00
+}
+```
+
+**Get Activity Logs**
+```http
+GET /api/v1/admin/dashboard/activity-logs?page=1&per_page=20
+Authorization: Bearer <admin_token>
+
+Response: 200 OK
+{
+  "logs": [
+    {
+      "id": "log123",
+      "admin_id": "admin1",
+      "action_type": "product_update",
+      "resource_id": "prod456",
+      "timestamp": "2024-01-15T10:30:00Z"
+    }
+  ],
+  "total": 450
+}
+```
+
+---
+
+### Admin User Management
+
+**List Users**
+```http
+GET /api/v1/admin/users?page=1&per_page=20&search=john&role=CUSTOMER
+Authorization: Bearer <admin_token>
+
+Response: 200 OK
+{
+  "users": [
+    {
+      "id": "user123",
+      "email": "john@example.com",
+      "first_name": "John",
+      "role": "CUSTOMER",
+      "is_active": true,
+      "created_at": "2024-01-10T..."
+    }
+  ],
+  "total": 150
+}
+```
+
+**Get User Details**
+```http
+GET /api/v1/admin/users/{user_id}
+Authorization: Bearer <admin_token>
+
+Response: 200 OK
+{
+  "id": "user123",
+  "email": "john@example.com",
+  "profile": {...},
+  "orders": 5,
+  "total_spent": 2500.00
+}
+```
+
+**Update User Status**
+```http
+PUT /api/v1/admin/users/{user_id}/status
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "is_active": false
+}
+
+Response: 200 OK
+```
+
+---
+
+### Admin Order Management
+
+**List Orders**
+```http
+GET /api/v1/admin/orders?page=1&status=PENDING&payment_status=CONFIRMED
+Authorization: Bearer <admin_token>
+
+Response: 200 OK
+{
+  "orders": [
+    {
+      "id": "order123",
+      "user_id": "user456",
+      "status": "PENDING",
+      "payment_status": "CONFIRMED",
+      "total_amount": 999.98,
+      "created_at": "..."
+    }
+  ],
+  "total": 45
+}
+```
+
+**Update Order Status**
+```http
+PUT /api/v1/admin/orders/{order_id}/status
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "status": "CONFIRMED"
+}
+
+Response: 200 OK
+```
+
+---
+
+### Admin Product Management
+
+**Create Product**
+```http
+POST /api/v1/admin/products
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "name": "New Plant",
+  "scientific_name": "Plant scientificus",
+  "category_id": "cat123",
+  "price": 299.99,
+  "cost_price": 150.00,
+  "image_url": "https://...",
+  "description": "...",
+  "care_instructions": "...",
+  "light_requirements": "Bright Indirect",
+  "watering_frequency": "Weekly",
+  "temperature_range": "18-24°C"
+}
+
+Response: 201 Created
+```
+
+**Update Product**
+```http
+PUT /api/v1/admin/products/{product_id}
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "price": 349.99,
+  "description": "Updated description"
+}
+
+Response: 200 OK
+```
+
+**Delete Product**
+```http
+DELETE /api/v1/admin/products/{product_id}
+Authorization: Bearer <admin_token>
+
+Response: 200 OK
+```
+
+**Activate/Deactivate Product**
+```http
+POST /api/v1/admin/products/{product_id}/activate
+Authorization: Bearer <admin_token>
+
+Response: 200 OK
+```
+
+---
+
+### Admin Category Management
+
+**List Categories**
+```http
+GET /api/v1/admin/categories?page=1&per_page=20
+Authorization: Bearer <admin_token>
+
+Response: 200 OK
+{
+  "categories": [...],
+  "total": 8
+}
+```
+
+**Create Category**
+```http
+POST /api/v1/admin/categories
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "name": "Outdoor Plants",
+  "slug": "outdoor-plants",
+  "description": "...",
+  "icon": "🌳"
+}
+
+Response: 201 Created
+```
+
+**Update Category**
+```http
+PUT /api/v1/admin/categories/{category_id}
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "name": "Updated Name",
+  "icon": "🌿"
+}
+
+Response: 200 OK
+```
+
+---
+
+### Admin Inventory Management
+
+**List Inventory**
+```http
+GET /api/v1/admin/inventory?page=1&low_stock_only=false
+Authorization: Bearer <admin_token>
+
+Response: 200 OK
+{
+  "inventory": [
+    {
+      "product_id": "prod123",
+      "product_name": "Monstera",
+      "quantity": 45,
+      "low_stock_threshold": 10,
+      "is_low_stock": false
+    }
+  ],
+  "total": 50
+}
+```
+
+**Adjust Stock**
+```http
+POST /api/v1/admin/inventory/{product_id}/adjust
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+
+{
+  "quantity_change": -5,
+  "reason": "Damaged items"
+}
+
+Response: 200 OK
+```
+
+---
+
+## Data Models
+
+### User Model
+
+```python
+class User(Base):
+    id: str                  # UUID
+    email: str              # Unique
+    phone: str | None
+    password_hash: str
+    first_name: str | None
+    last_name: str | None
+    role: UserRoleEnum      # CUSTOMER | ADMIN
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+    
+    Relationships:
+    - refresh_tokens: List[RefreshToken]
+    - cart: Cart
+    - orders: List[Order]
+    - payments: List[Payment]
+```
+
+### Product Model
+
+```python
+class Product(Base):
+    id: str
+    name: str
+    scientific_name: str | None
+    slug: str               # Unique
+    category_id: str
+    price: float
+    cost_price: float | None
+    image_url: str
+    description: str
+    care_instructions: str
+    light_requirements: str
+    watering_frequency: str
+    temperature_range: str
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+```
+
+### Order Model
+
+```python
+class Order(Base):
+    id: str
+    user_id: str
+    status: OrderStatusEnum    # PENDING | CONFIRMED | SHIPPED | DELIVERED
+    payment_status: PaymentStatusEnum
+    payment_id: str | None
+    total_amount: float
+    shipping_address: str | None
+    notes: str | None
+    created_at: datetime
+    updated_at: datetime
+    
+    Relationships:
+    - user: User
+    - items: List[OrderItem]
+    - payment: Payment
+```
+
+### Cart Model
+
+```python
+class Cart(Base):
+    id: str
+    user_id: str            # Unique
+    created_at: datetime
+    updated_at: datetime
+    
+    Relationships:
+    - user: User
+    - items: List[CartItem]
+```
+
+### Payment Model
+
+```python
+class Payment(Base):
+    id: str
+    order_id: str           # Unique
+    user_id: str
+    razorpay_order_id: str | None
+    razorpay_payment_id: str | None
+    razorpay_signature: str | None
+    amount: float
+    currency: str           # Default: "INR"
+    status: PaymentStatusEnum
+    error_message: str | None
+    created_at: datetime
+    updated_at: datetime
+```
+
+### AI Chat Model
+
+```python
+class AIChatConversation(Base):
+    id: str
+    user_id: str
+    created_at: datetime
+    updated_at: datetime
+    
+    Relationships:
+    - messages: List[AIChatMessage]
+
+class AIChatMessage(Base):
+    id: str
+    conversation_id: str
+    role: str               # "user" | "assistant"
+    content: str
+    created_at: datetime
+```
+
+---
+
+## Authentication & Security
+
+### JWT Authentication
+
+The application uses JWT (JSON Web Tokens) for stateless authentication:
+
+1. **Token Generation**: Upon login/registration
+   - Access token (short-lived, 30 minutes default)
+   - Refresh token (long-lived, 7 days default)
+
+2. **Token Storage**: Refresh tokens stored in database with:
+   - Hash verification
+   - Expiration tracking
+   - Revocation capability
+
+3. **Token Verification**: 
+   - Signature validation using `JWT_SECRET_KEY`
+   - Expiration time checking
+   - User role verification for admin endpoints
+
+### Password Security
+
+- **Hashing Algorithm**: bcrypt with configurable iterations
+- **Storage**: Password hashes only (never plain text)
+- **Validation**: Minimum 8 characters with mixed case and digits
+
+### Rate Limiting
+
+Prevents API abuse with configurable limits:
+
+```python
+# Example: 100 requests per 60 seconds per IP
+RATE_LIMIT_REQUESTS = 100
+RATE_LIMIT_WINDOW_SECONDS = 60
+```
+
+### CORS Configuration
+
+```python
+allow_origins = ["*"]           # Configure for specific domains
+allow_methods = ["GET", "POST", "PUT", "DELETE"]
+allow_headers = ["Authorization", "Content-Type"]
+```
+
+### Admin Authorization
+
+- Only users with `role=ADMIN` can access admin endpoints
+- Automatic role verification in middleware
+- Activity logging for all admin actions
+
+---
+
+## Testing
 
 ### Running Tests
 
 ```bash
-# Run all tests
+# All tests
 pytest
 
-# Run specific test file
-pytest tests/test_auth.py
+# Specific test file
+pytest src/tests/test_auth.py
 
-# Run with verbose output
+# With coverage
+pytest --cov=src --cov-report=html
+
+# Verbose output
 pytest -v
 
-# Run with coverage report
-pytest --cov=src
-
-# Run only unit tests
+# Specific test marker
 pytest -m unit
-
-# Run only integration tests
 pytest -m integration
 ```
 
 ### Test Configuration
 
-Test configuration is in `pytest.ini`:
+See `pytest.ini`:
+
 ```ini
 [pytest]
 testpaths = src/tests
@@ -858,444 +1593,217 @@ asyncio_mode = auto
 ### Sample Test Files
 
 - `test_register.py` - User registration tests
-- `test_phase1_api.py` - Phase 1 API tests
-- `test_prisma_models.py` - Prisma model tests
-- `quick_test.py` - Quick smoke tests
+- `test_models.py` - ORM model tests
+- `test_api.py` - API endpoint tests
 
 ---
 
-## 👨‍💻 Development Guide
-
-### Code Structure Guidelines
-
-1. **Controllers:** Handle HTTP layer
-   - Validate input using Pydantic models
-   - Call services for business logic
-   - Format and return responses
-
-2. **Services:** Implement business logic
-   - Orchestrate multiple operations
-   - Perform data transformations
-   - Call core functions
-
-3. **Core:** Domain-specific logic
-   - Pure functions when possible
-   - No side effects
-   - Reusable algorithms
-
-### Adding New Features
-
-#### Example: Adding a New Product Attribute
-
-1. **Update Database Schema** (`prisma/schema.prisma`)
-   ```prisma
-   model Product {
-     // ... existing fields ...
-     newAttribute String?
-   }
-   ```
-
-2. **Update Request/Response Models** (`data_contracts/`)
-   ```python
-   class ProductResponse(BaseModel):
-       # ... existing fields ...
-       new_attribute: Optional[str] = None
-   ```
-
-3. **Update Services/Controllers**
-   - Add logic to handle new attribute
-   - Update controllers to accept/return new field
-
-4. **Add Tests** (`src/tests/`)
-   - Unit tests for business logic
-   - Integration tests for API endpoints
+## Development Guide
 
 ### Code Style
 
-- **Formatting:** Follow PEP 8
-- **Type Hints:** Use type hints throughout
-- **Docstrings:** Document all public functions
-- **Comments:** Explain complex logic
+- **PEP 8** compliance
+- **Type hints** for all functions
+- **Docstrings** for public APIs
+- **Class-based services** for organization
 
+### Adding New Features
+
+1. **Define Models** (`src/models/`)
+   - Add SQLAlchemy model
+   - Include relationships
+
+2. **Create Data Contracts** (`src/data_contracts/`)
+   - Request validation
+   - Response serialization
+
+3. **Implement Service** (`src/services/`)
+   - Business logic
+   - Database operations
+
+4. **Build Controller** (`src/controllers/`)
+   - Route handlers
+   - Parameter validation
+   - Error handling
+
+5. **Write Tests** (`src/tests/`)
+   - Unit tests
+   - Integration tests
+
+6. **Update Documentation** (README, etc.)
+
+### Common Patterns
+
+**Service Method**
 ```python
-def process_payment(order_id: str, amount: float) -> PaymentResult:
-    """
-    Process payment for an order using Razorpay.
-    
-    Args:
-        order_id: The order identifier
-        amount: Payment amount in rupees
-        
-    Returns:
-        PaymentResult with transaction details
-        
-    Raises:
-        PaymentError: If payment processing fails
-    """
-    # Implementation here
-    pass
+async def get_user(self, session, user_id: str) -> User:
+    """Retrieve user by ID"""
+    result = await session.execute(
+        select(User).where(User.id == user_id)
+    )
+    return result.scalars().first()
 ```
 
-### Git Workflow
-
-```bash
-# Create feature branch
-git checkout -b feature/new-feature
-
-# Make changes and commit
-git add .
-git commit -m "feat: Add new feature"
-
-# Push and create pull request
-git push origin feature/new-feature
+**Controller Endpoint**
+```python
+@router.get("/users/{user_id}", response_model=UserResponse)
+async def get_user(
+    user_id: str,
+    session: AsyncSession = Depends(get_session)
+):
+    try:
+        user = await user_service.get_user(session, user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return UserResponse(**user.__dict__)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 ```
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
-### Common Issues & Solutions
+### Database Connection Error
 
-#### 1. Database Connection Error
+**Error**: `sqlalchemy.exc.OperationalError`
 
-**Error:** `sqlalchemy.exc.OperationalError: (pymysql.err.OperationalError)`
-
-**Solution:**
+**Solutions**:
 ```bash
-# Check MySQL is running
-# Verify DATABASE_URL in .env
-# Check credentials and host
+# Verify PostgreSQL is running
+psql -U user -h localhost
+
+# Check DATABASE_URL in .env
+# Verify credentials: host, port, database name
 
 # Test connection
-mysql -h 127.0.0.1 -u root -p
+python -c "
+import asyncio
+from src.database import health_check
+asyncio.run(health_check())
+"
 ```
 
-#### 2. JWT Token Invalid
+### JWT Token Invalid
 
-**Error:** `Invalid token` or `Token expired`
+**Error**: `Invalid token` or `Token expired`
 
-**Solution:**
+**Solutions**:
 ```bash
 # Generate new JWT secret
 python -c "import secrets; print(secrets.token_urlsafe(32))"
 
 # Update JWT_SECRET_KEY in .env
 # Restart application
+# Clear browser cookies/tokens
 ```
 
-#### 3. Redis Connection Failed
+### Port Already in Use
 
-**Error:** `ConnectionError: Error 111 connecting to redis`
+**Error**: `Address already in use [:8000]`
 
-**Solution:**
+**Solutions**:
 ```bash
-# Check Redis is running
-redis-cli ping
-
-# If using Docker
-docker-compose logs redis
-
-# Set REDIS_ENABLED=False to disable caching
-```
-
-#### 4. Port Already in Use
-
-**Error:** `Address already in use`
-
-**Solution:**
-```bash
-# Find process using port 8000
-lsof -i :8000  # macOS/Linux
+# Find process using port
+lsof -i :8000              # macOS/Linux
 netstat -ano | findstr :8000  # Windows
 
-# Change port in .env or CLI
+# Kill process
+kill -9 <PID>              # macOS/Linux
+taskkill /PID <PID> /F     # Windows
+
+# Use different port
 python run_app.py --port 8001
 ```
 
-#### 5. Module Not Found
+### Module Not Found
 
-**Error:** `ModuleNotFoundError: No module named 'fastapi'`
+**Error**: `ModuleNotFoundError: No module named 'fastapi'`
 
-**Solution:**
+**Solutions**:
 ```bash
-# Ensure virtual environment is activated
+# Activate virtual environment
+source venv/bin/activate   # macOS/Linux
+venv\Scripts\activate      # Windows
+
 # Reinstall dependencies
 pip install -r requirements.txt
-
-# Verify Prisma client
-prisma generate
 ```
 
-#### 6. Database Schema Not Found
+### Async Error
 
-**Error:** `ProgrammingError: Table doesn't exist`
+**Error**: `RuntimeError: Event loop is closed`
 
-**Solution:**
+**Solutions**:
 ```bash
-# Run database initialization
-python scripts/setup_db.py
-
-# Verify all tables created
-mysql -h 127.0.0.1 -u root -p nursery_db
-SHOW TABLES;
+# Ensure asyncio_mode = auto in pytest.ini
+# Use pytest-asyncio plugin
+pip install pytest-asyncio
 ```
 
-### Debug Mode
+### Razorpay integration issues
 
-Enable detailed logging:
+**Error**: `Razorpay API error`
 
+**Solutions**:
 ```bash
-# Set DEBUG=True in .env
-DEBUG=True
+# Verify credentials in .env
+RAZORPAY_KEY_ID=rzp_test_xxxxx  # Should start with rzp_test_
+RAZORPAY_KEY_SECRET=xxxxx
 
-# Run with verbose logging
-python run_app.py --log-level debug
+# Use sandbox API for testing
+# Check payment status in Razorpay dashboard
 ```
 
-### Getting Help
+### AI Chatbot errors
 
-1. **Check logs:** `docker-compose logs -f app`
-2. **Review documentation:** See [PHASE_2A_BACKEND_FOUNDATION.md](PHASE_2A_BACKEND_FOUNDATION.md)
-3. **Check admin API docs:** See [ADMIN_PANEL_API.md](ADMIN_PANEL_API.md)
-4. **View API examples:** See [sample_requests/](sample_requests/)
+**Error**: `Groq API error`
 
----
+**Solutions**:
+```bash
+# Verify API key
+GROQ_API_KEY=gsk_xxxxxxxxxxxxx
 
-## 📝 Additional Documentation
-
-- [Phase 2A Backend Implementation](PHASE_2A_BACKEND_FOUNDATION.md) - Detailed backend development guide
-- [Admin Panel API](ADMIN_PANEL_API.md) - Complete admin endpoint documentation
-- [API Request Examples](sample_requests/api_requests.http) - Sample HTTP requests
+# Check API quota/rate limits
+# Verify model availability (e.g., "mixtral-8x7b-32768")
+```
 
 ---
 
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
----
-
-## 👥 Contributors
-
-- Backend Team
-
----
-
-## 🔗 Resources
+## Additional Resources
 
 - [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [Prisma Documentation](https://www.prisma.io/docs/)
-- [Pydantic Documentation](https://docs.pydantic.dev/)
-- [JWT Authentication](https://pyjwt.readthedocs.io/)
-- [Razorpay API Documentation](https://razorpay.com/docs/api/)
+- [SQLAlchemy Async Guide](https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html)
+- [Pydantic V2 Docs](https://docs.pydantic.dev/latest/)
+- [PyJWT Documentation](https://pyjwt.readthedocs.io/)
+- [Razorpay API Docs](https://razorpay.com/docs/api/)
+- [Groq API Documentation](https://groq.com/docs)
+- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
+- [Docker Documentation](https://docs.docker.com/)
 
-Once the application is running, visit:
+### Related Documentation Files
 
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
+- [PHASE_2A_BACKEND_FOUNDATION.md](docs/PHASE_2A_BACKEND_FOUNDATION.md) - Detailed implementation guide
+- [ADMIN_PANEL_API.md](docs/ADMIN_PANEL_API.md) - Admin API specifications
+- [DEPLOYMENT_CHECKLIST.md](docs/DEPLOYMENT_CHECKLIST.md) - Deployment preparation
 
-## 🔐 API Endpoints
+---
 
-### Authentication
+## License
 
-| Method | Endpoint                       | Description          | Auth Required |
-| ------ | ------------------------------ | -------------------- | ------------- |
-| POST   | `/api/v1/auth/register`        | Register new user    | No            |
-| POST   | `/api/v1/auth/login`           | Login user           | No            |
-| POST   | `/api/v1/auth/refresh`         | Refresh access token | No            |
-| POST   | `/api/v1/auth/logout`          | Logout user          | Yes           |
-| GET    | `/api/v1/auth/me`              | Get current user     | Yes           |
-| POST   | `/api/v1/auth/change-password` | Change password      | Yes           |
+This project is licensed under the MIT License.
 
-### Products (Phase 1)
+---
 
-| Method | Endpoint                       | Description                                    | Auth Required |
-| ------ | ------------------------------ | ---------------------------------------------- | ------------- |
-| GET    | `/api/v1/products`             | List products with pagination & filtering      | No            |
-| GET    | `/api/v1/products/{id}`        | Get product details with diseases array        | No            |
-| GET    | `/api/v1/categories`           | List all product categories                    | No            |
+## Support & Contact
 
-### Admin Panel (Phase 2) 🔐
+For issues or questions:
+1. Check the troubleshooting section
+2. Review API documentation at `/docs`
+3. Check existing issues in repository
+4. Create a new issue with detailed description
 
-**Admin panel endpoints require admin authentication**
+---
 
-#### User Management
-| Method | Endpoint                             | Description              | Auth Required |
-| ------ | ------------------------------------ | ------------------------ | ------------- |
-| GET    | `/api/v1/admin/users`                | List all users           | Admin         |
-| GET    | `/api/v1/admin/users/{user_id}`      | Get user details         | Admin         |
-| PUT    | `/api/v1/admin/users/{user_id}/status` | Activate/suspend user  | Admin         |
-| PUT    | `/api/v1/admin/users/{user_id}/role`   | Change user role       | Super Admin   |
-| DELETE | `/api/v1/admin/users/{user_id}`      | Delete user (soft)       | Super Admin   |
-
-#### Order Management
-| Method | Endpoint                             | Description              | Auth Required |
-| ------ | ------------------------------------ | ------------------------ | ------------- |
-| GET    | `/api/v1/admin/orders`               | List all orders          | Admin         |
-| GET    | `/api/v1/admin/orders/{order_id}`    | Get order details        | Admin         |
-| PUT    | `/api/v1/admin/orders/{order_id}/status` | Update order status  | Admin         |
-| POST   | `/api/v1/admin/orders/{order_id}/cancel` | Cancel order        | Admin         |
-
-#### Inventory Management
-| Method | Endpoint                                    | Description         | Auth Required |
-| ------ | ------------------------------------------- | ------------------- | ------------- |
-| GET    | `/api/v1/admin/inventory`                   | List product stock  | Admin         |
-| GET    | `/api/v1/admin/inventory/{product_id}`      | Get stock details   | Admin         |
-| POST   | `/api/v1/admin/inventory/{inventory_id}/adjust` | Adjust stock    | Admin         |
-| GET    | `/api/v1/admin/inventory/low-stock/alert`   | Low stock alerts    | Admin         |
-
-#### Dashboard & Analytics
-| Method | Endpoint                             | Description              | Auth Required |
-| ------ | ------------------------------------ | ------------------------ | ------------- |
-| GET    | `/api/v1/admin/dashboard/statistics` | Dashboard metrics        | Admin         |
-| GET    | `/api/v1/admin/dashboard/activity-logs` | Admin activity logs   | Admin         |
-
-**For complete admin panel documentation, see [ADMIN_PANEL_API.md](./ADMIN_PANEL_API.md)**
-
-### Health Check
-
-| Method | Endpoint  | Description           | Auth Required |
-| ------ | --------- | --------------------- | ------------- |
-| GET    | `/health` | Service health status | No            |
-| GET    | `/`       | API information       | No            |
-
-## 📦 Project Structure
-
-```
-fastapi-auth-prisma/
-├── config/                     # Configuration files
-│   ├── dev_app_config.json
-│   ├── qa_app_config.json
-│   └── prod_app_config.json
-├── prisma/                     # Prisma ORM schema
-│   └── schema.prisma
-├── src/                        # Source code
-│   ├── controllers/           # API endpoints
-│   │   ├── auth_controller.py
-│   │   └── product_controller.py
-│   ├── core/                  # Business logic
-│   │   ├── auth_core.py
-│   │   └── product_core.py
-│   ├── data_contracts/        # Request/Response models
-│   │   └── api_request_response.py
-│   ├── middlewares/           # Custom middlewares
-│   │   └── auth_middleware.py
-│   ├── plugins/               # Database plugins
-│   │   └── database.py
-│   ├── services/              # Service layer
-│   │   ├── auth_service.py
-│   │   └── product_service.py
-│   ├── utilities/             # Helper utilities
-│   │   ├── cache_manager.py
-│   │   ├── config_manager.py
-│   │   ├── rate_limiter.py
-│   │   └── security.py
-│   └── main.py               # Application entry point
-├── .env.example              # Environment variables template
-├── docker-compose.yml        # Docker Compose configuration
-├── Dockerfile               # Docker image configuration
-├── requirements.txt         # Python dependencies
-└── README.md               # This file
-```
-
-## 🔧 Configuration
-
-### Environment Variables
-
-Key environment variables in `.env`:
-
-```bash
-# Database (MySQL)
-DATABASE_URL=mysql://user:password@localhost:3306/nursery_db
-
-# JWT
-JWT_SECRET_KEY=your-secret-key-here
-JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
-JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
-
-# Redis
-REDIS_HOST=localhost
-REDIS_PORT=6379
-REDIS_ENABLED=False
-
-# Rate Limiting
-RATE_LIMIT_ENABLED=True
-RATE_LIMIT_REQUESTS=100
-RATE_LIMIT_WINDOW_SECONDS=60
-
-# CORS
-CORS_ORIGINS=["http://localhost:3000", "http://localhost:8000"]
-```
-
-## 🔒 Security Features
-
-- **Password Hashing**: Bcrypt with configurable rounds
-- **JWT Tokens**: HS256 algorithm with expiration
-- **Rate Limiting**: Per-endpoint and per-user limits
-- **Token Refresh**: Secure token rotation
-- **CORS Protection**: Configurable origins
-- **Input Validation**: Pydantic models
-
-## 📊 Database Schema
-
-### Users Table
-
-- `id` - UUID primary key
-- `email` - Unique email address
-- `phone` - Optional phone number
-- `password_hash` - Bcrypt hashed password
-- `is_active` - Account status
-- Timestamps: `created_at`, `updated_at`
-
-### Refresh Tokens Table
-
-- `id` - UUID primary key
-- `user_id` - Foreign key to users
-- `token` - JWT refresh token
-- `expires_at` - Expiration timestamp
-- `is_revoked` - Revocation status
-
-### Categories Table (Phase 1)
-
-- `id` - UUID primary key
-- `name` - Category name
-- `slug` - URL-friendly identifier (unique)
-- `description` - Category description
-- `icon` - Emoji or icon identifier
-
-### Products Table (Phase 1)
-
-- `id` - UUID primary key
-- `name` - Product name
-- `scientific_name` - Scientific/botanical name
-- `slug` - URL-friendly identifier (unique)
-- `category_id` - Foreign key to categories
-- `price` - Retail price
-- `cost_price` - Cost price (optional)
-- `image_url` - Product image URL
-- `description` - Product description
-- `care_instructions` - Plant care details
-- `light_requirements` - Light conditions
-- `watering_frequency` - Watering schedule
-- `temperature_range` - Temperature preferences
-- `is_active` - Product availability status
-
-### Product Diseases Table (Phase 1)
-
-- `id` - UUID primary key
-- `product_id` - Foreign key to products
-- `disease_name` - Common disease name
-
-## 🚀 Deployment
-
-### Production Checklist
-
-- [ ] Set `ENVIRONMENT=production`
-- [ ] Change `JWT_SECRET_KEY` to strong random value
-- [ ] Update `DATABASE_URL` with production database
-- [ ] Configure Redis connection
-- [ ] Set up proper CORS origins
-- [ ] Enable HTTPS
-- [ ] Configure rate limits
-- [ ] Set up logging & monitoring
-- [ ] Run database migrations
+**Last Updated:** January 2026  
+**Status:** Production Ready ✅

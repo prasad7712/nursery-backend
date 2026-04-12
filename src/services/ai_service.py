@@ -2,8 +2,13 @@
 import logging
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+
 from src.core.ai_core import get_ai_core
-from src.plugins.database import db
+from src.models.ai_chat import AIChatConversation, AIChatMessage
 from src.data_contracts.api_request_response import ChatMessageResponse, ConversationResponse
 
 logger = logging.getLogger(__name__)
@@ -13,7 +18,7 @@ class AIService:
     """Service for AI chat operations"""
     
     @staticmethod
-    async def create_conversation(user_id: str) -> str:
+    async def create_conversation(session: AsyncSession, user_id: str) -> str:
         """
         Create a new conversation for a user
         
@@ -24,19 +29,24 @@ class AIService:
             Conversation ID
         """
         try:
-            conversation = await db.client.aichatconversation.create(
-                data={
-                    'user_id': user_id,
-                }
-            )
+            conversation = AIChatConversation(user_id=user_id)
+            session.add(conversation)
+            await session.commit()
+            await session.refresh(conversation)
+            
             logger.info(f"✅ Created conversation {conversation.id} for user {user_id}")
             return conversation.id
         except Exception as e:
+            await session.rollback()
             logger.error(f"❌ Failed to create conversation: {e}")
             raise
     
-    @staticmethod
-    async def get_conversation(user_id: str, conversation_id: str) -> Optional[Dict[str, Any]]:
+    async def get_conversation(
+        self,
+        session: AsyncSession,
+        user_id: str,
+        conversation_id: str
+    ) -> Optional[Dict[str, Any]]:
         """
         Get a conversation with its messages
         
@@ -48,18 +58,18 @@ class AIService:
             Conversation dict with messages, or None if not found
         """
         try:
-            conversation = await db.client.aichatconversation.find_unique(
-                where={'id': conversation_id},
-                include={'messages': True}
+            result = await session.execute(
+                select(AIChatConversation)
+                .where(AIChatConversation.id == conversation_id)
+                .options(selectinload(AIChatConversation.messages))
             )
-            
-            # Sort messages by created_at
-            if conversation and conversation.messages:
-                conversation.messages = sorted(conversation.messages, key=lambda x: x.created_at)
+            conversation = result.scalar_one_or_none()
             
             if not conversation:
                 logger.warning(f"Conversation {conversation_id} not found")
                 return None
+            
+            conversation.messages = sorted(conversation.messages, key=lambda x: x.created_at)
             
             # Verify user owns this conversation
             if conversation.user_id != user_id:
@@ -71,8 +81,12 @@ class AIService:
             logger.error(f"❌ Failed to get conversation: {e}")
             raise
     
-    @staticmethod
-    async def list_conversations(user_id: str, limit: int = 50) -> List[ConversationResponse]:
+    async def list_conversations(
+        self,
+        session: AsyncSession,
+        user_id: str,
+        limit: int = 50
+    ) -> List[ConversationResponse]:
         """
         List all conversations for a user, sorted by most recent first
         
@@ -84,14 +98,13 @@ class AIService:
             List of ConversationResponse objects
         """
         try:
-            conversations = await db.client.aichatconversation.find_many(
-                where={'user_id': user_id},
-                take=limit
+            result = await session.execute(
+                select(AIChatConversation)
+                .where(AIChatConversation.user_id == user_id)
+                .order_by(AIChatConversation.updated_at.desc())
+                .limit(limit)
             )
-            
-            # Sort by updated_at descending
-            conversations = sorted(conversations, key=lambda x: x.updated_at, reverse=True)
-            
+            conversations = result.scalars().all()
             return [
                 ConversationResponse(
                     id=conv.id,
@@ -104,8 +117,9 @@ class AIService:
             logger.error(f"❌ Failed to list conversations: {e}")
             raise
     
-    @staticmethod
     async def chat(
+        self,
+        session: AsyncSession,
         user_id: str,
         message: str,
         conversation_id: Optional[str] = None
@@ -132,46 +146,48 @@ class AIService:
         try:
             logger.info(f"🔄 Starting chat for user {user_id}")
             
-            # Create conversation if not provided
-            if not conversation_id:
-                logger.info("📝 Creating new conversation...")
-                conversation_id = await AIService.create_conversation(user_id)
-                logger.info(f"✅ Created new conversation: {conversation_id}")
-            else:
+            # Handle "undefined" or empty conversation_id from frontend
+            if conversation_id and conversation_id.lower() not in ['undefined', 'null', '']:
                 logger.info(f"🔍 Verifying authorization for conversation {conversation_id}")
                 # Verify authorization
-                existing = await AIService.get_conversation(user_id, conversation_id)
+                existing = await self.get_conversation(session, user_id, conversation_id)
                 if not existing:
                     raise ValueError(f"Conversation {conversation_id} not found")
                 logger.info(f"✅ Authorized for conversation {conversation_id}")
+            else:
+                # Create new conversation
+                logger.info("📝 Creating new conversation...")
+                conversation_id = await AIService.create_conversation(session, user_id)
+                logger.info(f"✅ Created new conversation: {conversation_id}")
             
             # Fetch conversation history (last 10 messages for context)
             logger.info(f"📚 Fetching conversation history from database...")
-            conversation = await db.client.aichatconversation.find_unique(
-                where={'id': conversation_id},
-                include={'messages': True}
+            result = await session.execute(
+                select(AIChatConversation)
+                .where(AIChatConversation.id == conversation_id)
+                .options(selectinload(AIChatConversation.messages))
             )
+            conversation = result.scalar_one_or_none()
             
-            # Sort messages by created_at and limit to last 10
-            if conversation and conversation.messages:
-                conversation.messages = sorted(conversation.messages, key=lambda x: x.created_at)[-10:]
-                logger.info(f"✅ Fetched {len(conversation.messages)} previous messages")
+            # Get last 10 messages and convert to format for AI core
+            messages = sorted(conversation.messages, key=lambda x: x.created_at) if conversation and conversation.messages else []
+            messages = messages[-10:] if len(messages) > 10 else messages
+            logger.info(f"✅ Fetched {len(messages)} previous messages")
             
-            # Convert message history to format for AI core
             history = [
                 {'role': msg.role if isinstance(msg.role, str) else msg.role.value, 'message': msg.message}
-                for msg in conversation.messages
+                for msg in messages
             ]
             
             # Save user message to database
             logger.info(f"💾 Saving user message to database...")
-            await db.client.aichatmessage.create(
-                data={
-                    'conversation_id': conversation_id,
-                    'role': 'USER',
-                    'message': message
-                }
+            user_msg = AIChatMessage(
+                conversation_id=conversation_id,
+                role='USER',
+                message=message
             )
+            session.add(user_msg)
+            await session.flush()
             logger.info(f"✅ User message saved")
             
             # Get AI response
@@ -190,21 +206,20 @@ class AIService:
             
             # Save AI response to database
             logger.info(f"💾 Saving AI response to database...")
-            await db.client.aichatmessage.create(
-                data={
-                    'conversation_id': conversation_id,
-                    'role': 'ASSISTANT',
-                    'message': ai_response
-                }
+            ai_msg = AIChatMessage(
+                conversation_id=conversation_id,
+                role='ASSISTANT',
+                message=ai_response
             )
-            logger.info(f"✅ AI response saved")
+            session.add(ai_msg)
             
             # Update conversation timestamp
             logger.info(f"🕐 Updating conversation timestamp...")
-            await db.client.aichatconversation.update(
-                where={'id': conversation_id},
-                data={'updated_at': datetime.now()}
-            )
+            if conversation:
+                conversation.updated_at = datetime.now()
+                session.add(conversation)
+            
+            await session.commit()
             logger.info(f"✅ Conversation updated")
             
             return ChatMessageResponse(
@@ -215,11 +230,12 @@ class AIService:
             )
             
         except Exception as e:
+            await session.rollback()
             logger.error(f"❌ Chat operation failed: {e}", exc_info=True)
             raise
-    
+
     @staticmethod
-    async def delete_conversation(user_id: str, conversation_id: str) -> bool:
+    async def delete_conversation(session: AsyncSession, user_id: str, conversation_id: str) -> bool:
         """
         Delete a conversation (cascade deletes messages)
         
@@ -232,9 +248,10 @@ class AIService:
         """
         try:
             # Verify user owns this conversation
-            conversation = await db.client.aichatconversation.find_unique(
-                where={'id': conversation_id}
+            result = await session.execute(
+                select(AIChatConversation).where(AIChatConversation.id == conversation_id)
             )
+            conversation = result.scalar_one_or_none()
             
             if not conversation:
                 logger.warning(f"Attempted to delete non-existent conversation {conversation_id}")
@@ -245,13 +262,13 @@ class AIService:
                 raise PermissionError("You don't have access to this conversation")
             
             # Delete conversation (cascade deletes messages)
-            await db.client.aichatconversation.delete(
-                where={'id': conversation_id}
-            )
+            await session.delete(conversation)
+            await session.commit()
             logger.info(f"✅ Deleted conversation {conversation_id}")
             return True
             
         except Exception as e:
+            await session.rollback()
             logger.error(f"❌ Failed to delete conversation: {e}")
             raise
 

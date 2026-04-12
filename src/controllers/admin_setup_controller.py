@@ -1,12 +1,15 @@
 """Admin setup controller for creating initial admin account"""
-from fastapi import APIRouter, HTTPException, status, Header
+from fastapi import APIRouter, HTTPException, status, Header, Depends
 from typing import Optional
+from sqlalchemy.ext.asyncio import AsyncSession
+from src.database import get_session
 
 from src.data_contracts.api_request_response import (
     RegisterRequest,
     RegisterApiResponse
 )
 from src.services.auth_service import auth_service
+from src.services.admin_service import admin_service
 from src.utilities.config_manager import config
 
 router = APIRouter(prefix="/api/v1/admin", tags=["Admin Setup"])
@@ -15,7 +18,8 @@ router = APIRouter(prefix="/api/v1/admin", tags=["Admin Setup"])
 @router.post("/setup", response_model=RegisterApiResponse, status_code=status.HTTP_201_CREATED)
 async def setup_admin(
     request: RegisterRequest,
-    setup_key: Optional[str] = Header(None)
+    setup_key: Optional[str] = Header(None),
+    session: AsyncSession = Depends(get_session)
 ):
     """
     Create initial admin account (requires ADMIN_SETUP_KEY)
@@ -40,14 +44,15 @@ async def setup_admin(
         )
     
     try:
-        # Create user
-        user = await auth_service.register_user(request)
+        # Create user with session
+        user = await auth_service.register_user(session, request)
         
-        # Update user role to ADMIN
-        from src.plugins.database import db
-        await db.client.user.update(
-            where={'id': user['id']},
-            data={'role': 'ADMIN'}
+        # Update user role to ADMIN using admin service
+        await admin_service.change_user_role(
+            session,
+            user_id=user['id'],
+            new_role='ADMIN',
+            reason='Initial admin setup'
         )
         
         return user

@@ -4,7 +4,11 @@ from datetime import datetime
 import os
 import razorpay
 
-from src.plugins.database import db
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.models.payment import Payment
+from src.models.order import Order
 
 
 class PaymentCore:
@@ -23,46 +27,42 @@ class PaymentCore:
     
     async def create_payment_order(
         self,
+        session: AsyncSession,
         order_id: str,
         user_id: str,
         amount: float,
         currency: str = "INR"
     ) -> Dict[str, Any]:
-        """
-        Create a Razorpay order and Payment record in database.
-        
-        Args:
-            order_id: Order ID from database
-            user_id: User ID
-            amount: Amount in rupees
-            currency: Currency code
-        
-        Returns:
-            Payment order details with Razorpay order ID
-        """
+        """Create a Razorpay order and Payment record in database"""
         try:
+            # Truncate order_id to fit Razorpay's 40 character limit for receipt
+            # Format: "ord_" + last 36 chars of order_id
+            receipt = f"ord_{order_id[-36:]}" if len(order_id) > 36 else f"ord_{order_id}"
+            
             # Create Razorpay order
             razorpay_order = self.razorpay_client.order.create({
                 'amount': int(amount * 100),  # Convert to paise
                 'currency': currency,
-                'receipt': f"order_{order_id}",
+                'receipt': receipt,
                 'notes': {
                     'order_id': order_id,
                     'user_id': user_id
                 }
             })
             
-            # Create Payment record in database (async)
-            payment = await db.client.payment.create(
-                data={
-                    'orderId': order_id,
-                    'userId': user_id,
-                    'razorpayOrderId': razorpay_order['id'],
-                    'amount': amount,
-                    'currency': currency,
-                    'status': 'PENDING'
-                }
+            # Create Payment record in database
+            payment = Payment(
+                id=str(__import__('uuid').uuid4()),
+                order_id=order_id,
+                user_id=user_id,
+                razorpay_order_id=razorpay_order['id'],
+                amount=amount,
+                currency=currency,
+                status="PENDING"
             )
+            
+            session.add(payment)
+            await session.commit()
             
             return {
                 'id': razorpay_order['id'],
@@ -77,26 +77,18 @@ class PaymentCore:
     
     async def verify_payment(
         self,
+        session: AsyncSession,
         order_id: str,
         payment_id: str,
         signature: str
     ) -> Dict[str, Any]:
-        """
-        Verify Razorpay payment signature (or mock in demo mode).
-        
-        Args:
-            order_id: Razorpay order ID
-            payment_id: Razorpay payment ID
-            signature: Razorpay signature
-        
-        Returns:
-            Verification result with status
-        """
+        """Verify Razorpay payment signature (or mock in demo mode)"""
         try:
-            # First, find the payment by razorpayOrderId
-            existing_payment = await db.client.payment.find_first(
-                where={'razorpayOrderId': order_id}
+            # Find the payment by razorpayOrderId
+            result = await session.execute(
+                select(Payment).where(Payment.razorpay_order_id == order_id)
             )
+            existing_payment = result.scalar_one_or_none()
             
             if not existing_payment:
                 raise Exception(f"Payment not found for order: {order_id}")
@@ -104,19 +96,20 @@ class PaymentCore:
             # === DEMO MODE: Auto-approve all payments ===
             if self.demo_mode:
                 print(f"[DEMO MODE] Auto-approving payment: {order_id}")
-                payment = await db.client.payment.update(
-                    where={'id': existing_payment.id},
-                    data={
-                        'razorpayPaymentId': payment_id,
-                        'razorpaySignature': signature,
-                        'status': 'SUCCESSFUL'
-                    }
-                )
+                existing_payment.razorpay_payment_id = payment_id
+                existing_payment.razorpay_signature = signature
+                existing_payment.status = "SUCCESSFUL"
                 
-                await db.client.order.update(
-                    where={'id': payment.orderId},
-                    data={'paymentStatus': 'SUCCESSFUL'}
-                )
+                session.add(existing_payment)
+                await session.commit()
+                
+                # Update Order status
+                result = await session.execute(select(Order).where(Order.id == existing_payment.order_id))
+                order = result.scalar_one_or_none()
+                if order:
+                    order.payment_status = "SUCCESSFUL"
+                    session.add(order)
+                    await session.commit()
                 
                 return {
                     'verified': True,
@@ -137,21 +130,21 @@ class PaymentCore:
                 # Fetch payment details from Razorpay
                 payment_details = self.razorpay_client.payment.fetch(payment_id)
                 
-                # Update Payment record in database using the found payment's id
-                payment = await db.client.payment.update(
-                    where={'id': existing_payment.id},
-                    data={
-                        'razorpayPaymentId': payment_id,
-                        'razorpaySignature': signature,
-                        'status': 'SUCCESSFUL'
-                    }
-                )
+                # Update Payment record
+                existing_payment.razorpay_payment_id = payment_id
+                existing_payment.razorpay_signature = signature
+                existing_payment.status = "SUCCESSFUL"
                 
-                # Update Order status (async)
-                order = await db.client.order.update(
-                    where={'id': payment.orderId},
-                    data={'paymentStatus': 'SUCCESSFUL'}
-                )
+                session.add(existing_payment)
+                await session.commit()
+                
+                # Update Order status
+                result = await session.execute(select(Order).where(Order.id == existing_payment.order_id))
+                order = result.scalar_one_or_none()
+                if order:
+                    order.payment_status = "SUCCESSFUL"
+                    session.add(order)
+                    await session.commit()
                 
                 return {
                     'verified': True,
@@ -160,20 +153,21 @@ class PaymentCore:
                     'status': 'successful'
                 }
             else:
-                # Mark payment as failed in database (async)
-                payment = await db.client.payment.update(
-                    where={'id': existing_payment.id},
-                    data={
-                        'razorpayPaymentId': payment_id,
-                        'status': 'FAILED',
-                        'errorMessage': 'Signature verification failed'
-                    }
-                )
+                # Mark payment as failed in database
+                existing_payment.razorpay_payment_id = payment_id
+                existing_payment.status = "FAILED"
+                existing_payment.error_message = 'Signature verification failed'
                 
-                order = await db.client.order.update(
-                    where={'id': payment.orderId},
-                    data={'paymentStatus': 'FAILED'}
-                )
+                session.add(existing_payment)
+                await session.commit()
+                
+                # Update Order status
+                result = await session.execute(select(Order).where(Order.id == existing_payment.order_id))
+                order = result.scalar_one_or_none()
+                if order:
+                    order.payment_status = "FAILED"
+                    session.add(order)
+                    await session.commit()
                 
                 return {
                     'verified': False,
@@ -184,91 +178,7 @@ class PaymentCore:
         except Exception as e:
             raise Exception(f"Error in verify_payment: {str(e)}")
     
-    async def handle_payment_authorized(self, event: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle payment.authorized webhook event"""
-        try:
-            # Demo mode: skip webhook processing
-            if self.demo_mode:
-                print("[DEMO MODE] Webhook event skipped in demo mode")
-                return {'status': 'success', 'message': 'Demo mode: webhook skipped', 'demo': True}
-            
-            payment_data = event.get('payload', {}).get('payment', {}).get('entity', {})
-            order_id = payment_data.get('order_id')
-            payment_id = payment_data.get('id')
-            
-            # Find payment by razorpayOrderId first
-            existing_payment = await db.client.payment.find_first(
-                where={'razorpayOrderId': order_id}
-            )
-            
-            if not existing_payment:
-                return {'status': 'error', 'message': f'Payment not found for order: {order_id}'}
-            
-            payment = await db.client.payment.update(
-                where={'id': existing_payment.id},
-                data={
-                    'razorpayPaymentId': payment_id,
-                    'status': 'SUCCESSFUL'
-                }
-            )
-            
-            # Update Order status (async)
-            await db.client.order.update(
-                where={'id': payment.orderId},
-                data={'paymentStatus': 'SUCCESSFUL'}
-            )
-            
-            return {
-                'status': 'success',
-                'message': 'Payment authorized',
-                'order_id': order_id
-            }
-        except Exception as e:
-            raise Exception(f"Error handling payment authorized: {str(e)}")
-    
-    async def handle_payment_failed(self, event: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle payment.failed webhook event"""
-        try:
-            # Demo mode: skip webhook processing
-            if self.demo_mode:
-                print("[DEMO MODE] Webhook event skipped in demo mode")
-                return {'status': 'success', 'message': 'Demo mode: webhook skipped', 'demo': True}
-            
-            payment_data = event.get('payload', {}).get('payment', {}).get('entity', {})
-            order_id = payment_data.get('order_id')
-            error_message = payment_data.get('error_description', 'Payment failed')
-            
-            # Find payment by razorpayOrderId first
-            existing_payment = await db.client.payment.find_first(
-                where={'razorpayOrderId': order_id}
-            )
-            
-            if not existing_payment:
-                return {'status': 'error', 'message': f'Payment not found for order: {order_id}'}
-            
-            payment = await db.client.payment.update(
-                where={'id': existing_payment.id},
-                data={
-                    'status': 'FAILED',
-                    'errorMessage': error_message
-                }
-            )
-            
-            # Update Order status (async)
-            await db.client.order.update(
-                where={'id': payment.orderId},
-                data={'paymentStatus': 'FAILED'}
-            )
-            
-            return {
-                'status': 'success',
-                'message': 'Payment failure recorded',
-                'order_id': order_id
-            }
-        except Exception as e:
-            raise Exception(f"Error handling payment failed: {str(e)}")
-    
-    async def handle_payment_captured(self, event: Dict[str, Any]) -> Dict[str, Any]:
+    async def handle_payment_captured(self, session: AsyncSession, event: Dict[str, Any]) -> Dict[str, Any]:
         """Handle payment.captured webhook event"""
         try:
             # Demo mode: skip webhook processing
@@ -280,27 +190,28 @@ class PaymentCore:
             order_id = payment_data.get('order_id')
             payment_id = payment_data.get('id')
             
-            # Find payment by razorpayOrderId first
-            existing_payment = await db.client.payment.find_first(
-                where={'razorpayOrderId': order_id}
+            # Find payment by razorpayOrderId
+            result = await session.execute(
+                select(Payment).where(Payment.razorpay_order_id == order_id)
             )
+            existing_payment = result.scalar_one_or_none()
             
             if not existing_payment:
                 return {'status': 'error', 'message': f'Payment not found for order: {order_id}'}
             
-            payment = await db.client.payment.update(
-                where={'id': existing_payment.id},
-                data={
-                    'razorpayPaymentId': payment_id,
-                    'status': 'SUCCESSFUL'
-                }
-            )
+            existing_payment.razorpay_payment_id = payment_id
+            existing_payment.status = "SUCCESSFUL"
             
-            # Update Order status (async)
-            await db.client.order.update(
-                where={'id': payment.orderId},
-                data={'paymentStatus': 'SUCCESSFUL'}
-            )
+            session.add(existing_payment)
+            await session.commit()
+            
+            # Update Order status
+            result = await session.execute(select(Order).where(Order.id == existing_payment.order_id))
+            order = result.scalar_one_or_none()
+            if order:
+                order.payment_status = "SUCCESSFUL"
+                session.add(order)
+                await session.commit()
             
             return {
                 'status': 'success',
@@ -309,6 +220,49 @@ class PaymentCore:
             }
         except Exception as e:
             raise Exception(f"Error handling payment captured: {str(e)}")
+    
+    async def handle_payment_failed(self, session: AsyncSession, event: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle payment.failed webhook event"""
+        try:
+            # Demo mode: skip webhook processing
+            if self.demo_mode:
+                print("[DEMO MODE] Webhook event skipped in demo mode")
+                return {'status': 'success', 'message': 'Demo mode: webhook skipped', 'demo': True}
+            
+            payment_data = event.get('payload', {}).get('payment', {}).get('entity', {})
+            order_id = payment_data.get('order_id')
+            error_message = payment_data.get('error_description', 'Payment failed')
+            
+            # Find payment by razorpayOrderId
+            result = await session.execute(
+                select(Payment).where(Payment.razorpay_order_id == order_id)
+            )
+            existing_payment = result.scalar_one_or_none()
+            
+            if not existing_payment:
+                return {'status': 'error', 'message': f'Payment not found for order: {order_id}'}
+            
+            existing_payment.status = "FAILED"
+            existing_payment.error_message = error_message
+            
+            session.add(existing_payment)
+            await session.commit()
+            
+            # Update Order status
+            result = await session.execute(select(Order).where(Order.id == existing_payment.order_id))
+            order = result.scalar_one_or_none()
+            if order:
+                order.payment_status = "FAILED"
+                session.add(order)
+                await session.commit()
+            
+            return {
+                'status': 'success',
+                'message': 'Payment failure recorded',
+                'order_id': order_id
+            }
+        except Exception as e:
+            raise Exception(f"Error handling payment failed: {str(e)}")
 
 
 # Singleton instance

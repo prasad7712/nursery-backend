@@ -2,6 +2,7 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPAuthorizationCredentials
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.data_contracts.api_request_response import (
     ChatMessageRequest,
@@ -11,6 +12,7 @@ from src.data_contracts.api_request_response import (
 )
 from src.services.ai_service import ai_service
 from src.middlewares.auth_middleware import AuthMiddleware, security_scheme
+from src.database import get_session
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +28,8 @@ router = APIRouter(prefix="/api/v1/ai", tags=["AI Chatbot"])
 )
 async def chat(
     request: ChatMessageRequest,
-    credentials: HTTPAuthorizationCredentials = Depends(security_scheme)
+    credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
+    session: AsyncSession = Depends(get_session)
 ):
     """
     Send a message to the AI chatbot and get a response
@@ -52,6 +55,7 @@ async def chat(
         
         # Send message and get response
         response = await ai_service.chat(
+            session,
             user_id=user.id,
             message=request.message.strip(),
             conversation_id=request.conversation_id
@@ -94,7 +98,8 @@ async def chat(
 )
 async def get_conversations(
     credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
-    limit: int = 50
+    limit: int = 50,
+    session: AsyncSession = Depends(get_session)
 ):
     """
     Get list of all conversations for the authenticated user
@@ -112,7 +117,7 @@ async def get_conversations(
             limit = 50
         
         # Get conversations
-        conversations = await ai_service.list_conversations(user.id, limit=limit)
+        conversations = await ai_service.list_conversations(session, user.id, limit=limit)
         
         return ConversationListResponse(
             conversations=conversations,
@@ -135,7 +140,8 @@ async def get_conversations(
 )
 async def get_conversation(
     conversation_id: str,
-    credentials: HTTPAuthorizationCredentials = Depends(security_scheme)
+    credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
+    session: AsyncSession = Depends(get_session)
 ):
     """
     Get a specific conversation with all its messages
@@ -146,8 +152,15 @@ async def get_conversation(
         # Authenticate user
         user = await AuthMiddleware.get_current_user(credentials)
         
+        # Handle "undefined" from frontend
+        if conversation_id.lower() in ['undefined', 'null']:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid conversation ID"
+            )
+        
         # Get conversation
-        conversation = await ai_service.get_conversation(user.id, conversation_id)
+        conversation = await ai_service.get_conversation(session, user.id, conversation_id)
         
         if not conversation:
             raise HTTPException(
@@ -191,7 +204,8 @@ async def get_conversation(
 )
 async def delete_conversation(
     conversation_id: str,
-    credentials: HTTPAuthorizationCredentials = Depends(security_scheme)
+    credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
+    session: AsyncSession = Depends(get_session)
 ):
     """
     Delete a specific conversation and all its messages
@@ -203,7 +217,7 @@ async def delete_conversation(
         user = await AuthMiddleware.get_current_user(credentials)
         
         # Delete conversation
-        success = await ai_service.delete_conversation(user.id, conversation_id)
+        success = await ai_service.delete_conversation(session, user.id, conversation_id)
         
         if not success:
             raise HTTPException(

@@ -1,9 +1,11 @@
 """Admin dashboard controller for viewing statistics and metrics"""
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.middlewares.auth_middleware import security_scheme
-from src.plugins.database import db
+from src.database import get_session
 from src.services.admin_service import admin_service
+from src.services.analytics_service import analytics_service
 from src.data_contracts.admin_request_response import (
     AdminDashboardResponse,
     AdminLogsResponse
@@ -13,7 +15,10 @@ router = APIRouter(prefix="/api/v1/admin/dashboard", tags=["admin:dashboard"])
 
 
 @router.get("/statistics", response_model=AdminDashboardResponse)
-async def get_dashboard_statistics(credentials=Depends(security_scheme)):
+async def get_dashboard_statistics(
+    credentials=Depends(security_scheme),
+    session: AsyncSession = Depends(get_session)
+):
     """
     Get admin dashboard statistics
     
@@ -29,20 +34,19 @@ async def get_dashboard_statistics(credentials=Depends(security_scheme)):
         from src.middlewares.auth_middleware import AuthMiddleware
         admin = await AuthMiddleware.get_current_admin(credentials)
         
-        # Get user count
-        user_stats = await admin_service.get_user_count()
+        # Get dashboard metrics using analytics service
+        metrics = await analytics_service.get_dashboard_metrics(session)
         
-        # Get order statistics
-        order_stats = await admin_service.get_order_statistics()
-        
-        # Get product count
-        product_stats = await admin_service.get_product_count()
+        # Get detailed metrics
+        user_metrics = await analytics_service.get_user_metrics(session)
+        order_metrics = await analytics_service.get_order_metrics(session)
+        product_metrics = await analytics_service.get_product_metrics(session)
         
         return AdminDashboardResponse(
-            users=user_stats,
-            orders=order_stats,
-            products=product_stats,
-            low_stock_count=product_stats.get('low_stock', 0),
+            users=user_metrics,
+            orders=order_metrics,
+            products=product_metrics,
+            low_stock_count=metrics.get('low_stock_products', 0),
             timestamp=None
         )
     except HTTPException:
@@ -56,11 +60,12 @@ async def get_dashboard_statistics(credentials=Depends(security_scheme)):
 
 @router.get("/activity-logs", response_model=AdminLogsResponse)
 async def get_activity_logs(
-    page: int = 1,
-    per_page: int = 20,
-    admin_id: str = None,
-    action_type: str = None,
-    credentials=Depends(security_scheme)
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    admin_id: str = Query(None),
+    action_type: str = Query(None),
+    credentials=Depends(security_scheme),
+    session: AsyncSession = Depends(get_session)
 ):
     """
     Get admin activity logs
@@ -78,6 +83,7 @@ async def get_activity_logs(
         admin = await AuthMiddleware.get_current_admin(credentials)
         
         logs_data = await admin_service.get_admin_logs(
+            session,
             admin_id=admin_id,
             action_type=action_type,
             page=page,
@@ -88,18 +94,18 @@ async def get_activity_logs(
         logs_list = []
         for log in logs_data.get('logs', []):
             log_dict = {
-                'id': log.id,
-                'admin_id': log.admin_id,
-                'admin_email': log.admin.email if hasattr(log, 'admin') and log.admin else None,
-                'action_type': log.action_type,
-                'entity_type': log.entity_type,
-                'entity_id': log.entity_id,
-                'old_values': json.loads(log.old_values) if log.old_values else None,
-                'new_values': json.loads(log.new_values) if log.new_values else None,
-                'reason': log.reason,
-                'ip_address': log.ip_address,
-                'user_agent': log.user_agent if hasattr(log, 'user_agent') else None,
-                'created_at': log.created_at
+                'id': log['id'],
+                'admin_id': log['admin_id'],
+                'admin_email': None,  # Not included in service response
+                'action_type': log['action_type'],
+                'entity_type': log['entity_type'],
+                'entity_id': log['entity_id'],
+                'old_values': log.get('old_values'),
+                'new_values': log.get('new_values'),
+                'reason': log.get('reason'),
+                'ip_address': log.get('ip_address'),
+                'user_agent': log.get('user_agent'),
+                'created_at': log['created_at']
             }
             from src.data_contracts.admin_request_response import AdminLogResponse
             logs_list.append(AdminLogResponse(**log_dict))

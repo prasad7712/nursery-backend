@@ -22,7 +22,7 @@ from src.controllers.admin_product_controller import router as admin_product_rou
 from src.controllers.admin_category_controller import router as admin_category_router
 from src.controllers.admin_inventory_controller import router as admin_inventory_router
 from src.controllers.ai_controller import router as ai_router
-from src.plugins.database import db
+from src.database import engine, init_db, dispose_db, health_check
 from src.utilities.config_manager import config
 from src.utilities.admin_init import initialize_admin
 from src.data_contracts.api_request_response import HealthCheckResponse
@@ -35,16 +35,24 @@ async def lifespan(app: FastAPI):
     print("🚀 Starting FastAPI Auth Service...")
     
     try:
-        # Connect to database (non-blocking - allow app to start even if DB fails)
+        # Initialize database schema (create all tables if they don't exist)
         try:
-            await db.connect()
+            print("📂 Initializing database schema...")
+            await init_db()
+            print("✅ Database schema initialized")
             
-            # Initialize admin account if not exists
-            await initialize_admin()
-            
-            print("✅ Database connection successful")
+            # Test database connection
+            db_healthy = await health_check()
+            if db_healthy:
+                print("✅ Database connection successful")
+                
+                # Initialize admin account if not exists
+                await initialize_admin()
+            else:
+                print("⚠️  Database connection check failed (app will still start)")
+                print("⚠️  Database will be retried on first request")
         except Exception as db_error:
-            print(f"⚠️  Database connection warning (app will still start): {db_error}")
+            print(f"⚠️  Database initialization warning (app will still start): {db_error}")
             print("⚠️  Database will be retried on first request")
         
         print("✅ FastAPI service started successfully")
@@ -58,7 +66,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     print("🛑 Shutting down FastAPI Auth Service...")
     try:
-        await db.disconnect()
+        await dispose_db()
         print("✅ Database disconnected")
     except Exception as e:
         print(f"⚠️  Shutdown warning: {e}")
@@ -68,7 +76,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=config.app_name,
     version=config.version,
-    description="FastAPI Authentication Service with Prisma ORM and JWT",
+    description="FastAPI Authentication Service with SQLAlchemy ORM and JWT",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -117,13 +125,13 @@ app.include_router(ai_router)
 
 # Health check endpoint
 @app.get("/health", response_model=HealthCheckResponse, tags=["Health"])
-async def health_check():
+async def health_check_endpoint():
     """
     Health check endpoint
     
     Returns the status of the service and its dependencies
     """
-    db_status = "healthy" if await db.health_check() else "unhealthy"
+    db_status = "healthy" if await health_check() else "unhealthy"
     
     return HealthCheckResponse(
         status="healthy",

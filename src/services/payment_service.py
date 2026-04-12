@@ -3,6 +3,8 @@ from typing import Dict, Any
 import hmac
 import hashlib
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.core.payment_core import payment_core
 
 
@@ -11,6 +13,7 @@ class PaymentService:
     
     async def create_payment_order(
         self,
+        session: AsyncSession,
         order_id: str,
         user_id: str,
         amount: float,
@@ -36,7 +39,7 @@ class PaymentService:
         """
         try:
             result = await payment_core.create_payment_order(
-                order_id, user_id, amount, currency
+                session, order_id, user_id, amount, currency
             )
             return result
         except Exception as e:
@@ -44,6 +47,7 @@ class PaymentService:
     
     async def verify_payment(
         self,
+        session: AsyncSession,
         order_id: str,
         payment_id: str,
         signature: str
@@ -66,13 +70,17 @@ class PaymentService:
         """
         try:
             result = await payment_core.verify_payment(
-                order_id, payment_id, signature
+                session, order_id, payment_id, signature
             )
             return result
         except Exception as e:
             raise Exception(f"Error verifying payment: {str(e)}")
     
-    async def handle_webhook(self, event: Dict[str, Any]) -> Dict[str, Any]:
+    async def handle_webhook(
+        self,
+        session: AsyncSession,
+        event: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Handle Razorpay webhook events for payment updates.
         
@@ -90,11 +98,11 @@ class PaymentService:
             event_type = event.get('event')
             
             if event_type == 'payment.authorized':
-                return await payment_core.handle_payment_authorized(event)
+                return await payment_core.handle_payment_authorized(session, event)
             elif event_type == 'payment.failed':
-                return await payment_core.handle_payment_failed(event)
+                return await payment_core.handle_payment_failed(session, event)
             elif event_type == 'payment.captured':
-                return await payment_core.handle_payment_captured(event)
+                return await payment_core.handle_payment_captured(session, event)
             else:
                 return {'status': 'unknown_event', 'message': f'Event: {event_type}'}
         except Exception as e:

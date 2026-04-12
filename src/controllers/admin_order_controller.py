@@ -1,9 +1,13 @@
 """Admin order management controller"""
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func
 
 from src.middlewares.auth_middleware import security_scheme
-from src.plugins.database import db
+from src.database import get_session
 from src.services.admin_service import admin_service
+from src.models.order import Order
+from src.models.user import User
 from src.data_contracts.admin_request_response import (
     AdminOrderStatusUpdateRequest,
     AdminOrderResponse,
@@ -21,7 +25,8 @@ async def list_orders(
     status: str = Query(None),
     payment_status: str = Query(None),
     user_id: str = Query(None),
-    credentials=Depends(security_scheme)
+    credentials=Depends(security_scheme),
+    session: AsyncSession = Depends(get_session)
 ):
     """
     List all orders with filters
@@ -37,25 +42,36 @@ async def list_orders(
         from src.middlewares.auth_middleware import AuthMiddleware
         admin = await AuthMiddleware.get_current_admin(credentials)
         
-        where = {}
+        where_conditions = []
         if status:
-            where['status'] = status
+            where_conditions.append(Order.status == status)
         if payment_status:
-            where['paymentStatus'] = payment_status
+            where_conditions.append(Order.payment_status == payment_status)
         if user_id:
-            where['userId'] = user_id
+            where_conditions.append(Order.user_id == user_id)
         
-        total = await db.client.order.count(where=where)
+        # Build query
+        stmt = select(Order)
+        if where_conditions:
+            from sqlalchemy import and_
+            stmt = stmt.where(and_(*where_conditions)) if len(where_conditions) > 1 else stmt.where(where_conditions[0])
         
-        orders = await db.client.order.find_many(
-            where=where,
-            skip=(page - 1) * per_page,
-            take=per_page,
-            include={'user': True, 'items': True}
-        )
+        # Get total count
+        count_stmt = select(func.count()).select_from(Order)
+        if where_conditions:
+            from sqlalchemy import and_
+            count_stmt = count_stmt.where(and_(*where_conditions)) if len(where_conditions) > 1 else count_stmt.where(where_conditions[0])
+        count_result = await session.execute(count_stmt)
+        total = count_result.scalar() or 0
         
-        # Sort by createdAt descending
-        orders = sorted(orders, key=lambda x: x.createdAt, reverse=True) if orders else []
+        # Get paginated results with relationships
+        from sqlalchemy.orm import selectinload
+        stmt = stmt.options(
+            selectinload(Order.user),
+            selectinload(Order.items)
+        ).order_by(Order.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
+        result = await session.execute(stmt)
+        orders = result.scalars().unique().all()
         
         result = []
         for order in orders:
@@ -81,20 +97,28 @@ async def list_orders(
 
 
 @router.get("/{order_id}", response_model=AdminOrderResponse)
-async def get_order(order_id: str, credentials=Depends(security_scheme)):
-    """
-    Get order details
+async def get_order(
+    order_id: str,
+    credentials=Depends(security_scheme),
+    session: AsyncSession = Depends(get_session)
+):
+    """Get order details
     
     Auth Required: Admin
     """
     try:
         from src.middlewares.auth_middleware import AuthMiddleware
+        from sqlalchemy.orm import selectinload
+        
         admin = await AuthMiddleware.get_current_admin(credentials)
         
-        order = await db.client.order.find_unique(
-            where={'id': order_id},
-            include={'user': True, 'items': True}
+        stmt = select(Order).where(Order.id == order_id).options(
+            selectinload(Order.user),
+            selectinload(Order.items)
         )
+        result = await session.execute(stmt)
+        order = result.scalar_one_or_none()
+        
         if not order:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -118,10 +142,10 @@ async def get_order(order_id: str, credentials=Depends(security_scheme)):
 async def update_order_status(
     order_id: str,
     request: AdminOrderStatusUpdateRequest,
-    credentials=Depends(security_scheme)
+    credentials=Depends(security_scheme),
+    session: AsyncSession = Depends(get_session)
 ):
-    """
-    Update order status
+    """Update order status
     
     Auth Required: Admin
     
@@ -131,7 +155,10 @@ async def update_order_status(
         from src.middlewares.auth_middleware import AuthMiddleware
         admin = await AuthMiddleware.get_current_admin(credentials)
         
-        order = await db.client.order.find_unique(where={'id': order_id})
+        stmt = select(Order).where(Order.id == order_id)
+        result = await session.execute(stmt)
+        order = result.scalar_one_or_none()
+        
         if not order:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -139,13 +166,11 @@ async def update_order_status(
             )
         
         old_status = order.status
-        
-        await db.client.order.update(
-            where={'id': order_id},
-            data={'status': request.status}
-        )
+        order.status = request.status
+        await session.commit()
         
         await admin_service.log_admin_action(
+            session,
             admin_id=admin.id,
             action_type='STATUS_CHANGE',
             entity_type='Order',
@@ -159,6 +184,7 @@ async def update_order_status(
     except HTTPException:
         raise
     except Exception as e:
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Error updating order: {str(e)}"
@@ -169,10 +195,10 @@ async def update_order_status(
 async def cancel_order(
     order_id: str,
     reason: str = Query(...),
-    credentials=Depends(security_scheme)
+    credentials=Depends(security_scheme),
+    session: AsyncSession = Depends(get_session)
 ):
-    """
-    Cancel order
+    """Cancel order
     
     Auth Required: Admin
     """
@@ -180,7 +206,10 @@ async def cancel_order(
         from src.middlewares.auth_middleware import AuthMiddleware
         admin = await AuthMiddleware.get_current_admin(credentials)
         
-        order = await db.client.order.find_unique(where={'id': order_id})
+        stmt = select(Order).where(Order.id == order_id)
+        result = await session.execute(stmt)
+        order = result.scalar_one_or_none()
+        
         if not order:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -194,13 +223,11 @@ async def cancel_order(
             )
         
         old_status = order.status
-        
-        await db.client.order.update(
-            where={'id': order_id},
-            data={'status': 'CANCELLED'}
-        )
+        order.status = 'CANCELLED'
+        await session.commit()
         
         await admin_service.log_admin_action(
+            session,
             admin_id=admin.id,
             action_type='STATUS_CHANGE',
             entity_type='Order',
@@ -214,6 +241,7 @@ async def cancel_order(
     except HTTPException:
         raise
     except Exception as e:
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error cancelling order: {str(e)}"

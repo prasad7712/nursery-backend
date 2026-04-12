@@ -3,9 +3,11 @@ from datetime import datetime, timezone
 from functools import wraps
 from fastapi import HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy import select
 
 from src.utilities.security import security
-from src.plugins.database import db
+from src.database import async_session_maker
+from src.models.user import User
 
 
 security_scheme = HTTPBearer()
@@ -46,7 +48,11 @@ class AuthMiddleware:
             )
         
         # Get user from database
-        user = await db.client.user.find_unique(where={'id': user_id})
+        async with async_session_maker() as session:
+            stmt = select(User).where(User.id == user_id)
+            result = await session.execute(stmt)
+            user = result.scalar_one_or_none()
+        
         if user is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

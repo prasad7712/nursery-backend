@@ -1,6 +1,7 @@
 """Product API Controller"""
-from fastapi import APIRouter, HTTPException, status, Query
+from fastapi import APIRouter, HTTPException, status, Query, Depends
 from typing import Optional
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.data_contracts.api_request_response import (
     ProductsListResponse,
@@ -10,6 +11,7 @@ from src.data_contracts.api_request_response import (
     CategoryResponse
 )
 from src.services.product_service import ProductService
+from src.database import get_session
 
 
 router = APIRouter(prefix="/api/v1", tags=["Products"])
@@ -21,7 +23,8 @@ async def list_products(
     category_id: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
-    per_page: int = Query(10, ge=1, le=100)
+    per_page: int = Query(10, ge=1, le=100),
+    session: AsyncSession = Depends(get_session)
 ):
     """
     Get all active products with optional filtering and pagination
@@ -35,6 +38,7 @@ async def list_products(
     """
     try:
         result = await product_service.get_all_products(
+            session,
             category_id=category_id,
             search=search,
             page=page,
@@ -63,7 +67,10 @@ async def list_products(
 
 
 @router.get("/products/{product_id}", response_model=ProductDetailResponse)
-async def get_product_detail(product_id: str):
+async def get_product_detail(
+    product_id: str,
+    session: AsyncSession = Depends(get_session)
+):
     """
     Get product details by ID
     
@@ -72,7 +79,7 @@ async def get_product_detail(product_id: str):
     Returns full product information including care instructions and common diseases
     """
     try:
-        product = await product_service.get_product_detail(product_id)
+        product = await product_service.get_product_detail(session, product_id)
         return ProductDetailResponse(**product)
     except ValueError as e:
         raise HTTPException(
@@ -87,14 +94,14 @@ async def get_product_detail(product_id: str):
 
 
 @router.get("/categories", response_model=CategoriesListResponse)
-async def list_categories():
+async def list_categories(session: AsyncSession = Depends(get_session)):
     """
     Get all product categories
     
     Returns list of categories with names, slugs, descriptions, and icons
     """
     try:
-        result = await product_service.get_all_categories()
+        result = await product_service.get_all_categories(session)
         
         # Convert to CategoryResponse objects
         categories = [CategoryResponse(**c) for c in result['categories']]

@@ -1,6 +1,8 @@
 """Product business logic orchestration"""
 from typing import Optional, Dict, Any
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.core.product_core import ProductCore
 
 
@@ -12,6 +14,7 @@ class ProductService:
     
     async def get_all_products(
         self,
+        session: AsyncSession,
         category_id: Optional[str] = None,
         search: Optional[str] = None,
         page: int = 1,
@@ -20,6 +23,7 @@ class ProductService:
         """Get all products with filtering and pagination"""
         try:
             return await self.product_core.get_all_products(
+                session,
                 category_id=category_id,
                 search=search,
                 page=page,
@@ -28,17 +32,17 @@ class ProductService:
         except ValueError as e:
             raise ValueError(str(e))
     
-    async def get_product_detail(self, product_id: str) -> Dict[str, Any]:
+    async def get_product_detail(self, session: AsyncSession, product_id: str) -> Dict[str, Any]:
         """Get product details"""
         try:
-            return await self.product_core.get_product_detail(product_id)
+            return await self.product_core.get_product_detail(session, product_id)
         except ValueError as e:
             raise ValueError(str(e))
     
-    async def get_all_categories(self) -> Dict[str, Any]:
+    async def get_all_categories(self, session: AsyncSession) -> Dict[str, Any]:
         """Get all categories"""
         try:
-            categories = await self.product_core.get_all_categories()
+            categories = await self.product_core.get_all_categories(session)
             return {
                 'categories': categories,
                 'total': len(categories)

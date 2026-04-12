@@ -1,6 +1,8 @@
 """Cart business logic service layer"""
 from typing import Dict, Any
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.core.cart_core import CartCore
 
 
@@ -12,6 +14,7 @@ class CartService:
     
     async def add_to_cart(
         self, 
+        session: AsyncSession,
         user_id: str, 
         product_id: str, 
         quantity: int
@@ -23,26 +26,26 @@ class CartService:
             ValueError: If product not found, invalid quantity
         """
         try:
-            result = await self.cart_core.add_to_cart(user_id, product_id, quantity)
+            result = await self.cart_core.add_to_cart(session, user_id, product_id, quantity)
             return result
         except ValueError as e:
             raise ValueError(str(e))
         except Exception as e:
             raise Exception(f"Error adding to cart: {str(e)}")
     
-    async def get_cart(self, user_id: str) -> Dict[str, Any]:
+    async def get_cart(self, session: AsyncSession, user_id: str) -> Dict[str, Any]:
         """
         Get user's cart.
         
         Returns empty cart if no items.
         """
         try:
-            result = await self.cart_core.get_cart(user_id)
+            result = await self.cart_core.get_cart(session, user_id)
             return result
         except Exception as e:
             raise Exception(f"Error fetching cart: {str(e)}")
     
-    async def remove_from_cart(self, user_id: str, cart_item_id: str) -> Dict[str, Any]:
+    async def remove_from_cart(self, session: AsyncSession, user_id: str, cart_item_id: str) -> Dict[str, Any]:
         """
         Remove item from cart.
         
@@ -50,7 +53,7 @@ class CartService:
             ValueError: If item not found or unauthorized
         """
         try:
-            result = await self.cart_core.remove_from_cart(user_id, cart_item_id)
+            result = await self.cart_core.remove_from_cart(session, user_id, cart_item_id)
             return result
         except ValueError as e:
             raise ValueError(str(e))
@@ -59,6 +62,7 @@ class CartService:
     
     async def update_cart_item(
         self, 
+        session: AsyncSession,
         user_id: str, 
         cart_item_id: str, 
         quantity: int
@@ -69,16 +73,16 @@ class CartService:
         Set quantity=0 to remove item.
         """
         try:
-            result = await self.cart_core.update_cart_item(user_id, cart_item_id, quantity)
+            result = await self.cart_core.update_cart_item(session, user_id, cart_item_id, quantity)
             return result
         except ValueError as e:
             raise ValueError(str(e))
         except Exception as e:
             raise Exception(f"Error updating cart item: {str(e)}")
     
-    async def clear_cart(self, user_id: str) -> None:
+    async def clear_cart(self, session: AsyncSession, user_id: str) -> None:
         """Clear all items from user's cart."""
         try:
-            await self.cart_core.clear_cart(user_id)
+            await self.cart_core.clear_cart(session, user_id)
         except Exception as e:
             raise Exception(f"Error clearing cart: {str(e)}")

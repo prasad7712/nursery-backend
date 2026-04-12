@@ -1,6 +1,7 @@
 """Authentication API Controller"""
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPAuthorizationCredentials
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.data_contracts.api_request_response import (
     RegisterRequest,
@@ -18,13 +19,14 @@ from src.data_contracts.api_request_response import (
 from src.services.auth_service import auth_service
 from src.middlewares.auth_middleware import AuthMiddleware, security_scheme
 from src.utilities.rate_limiter import rate_limiter
+from src.database import get_session
 
 
 router = APIRouter(prefix="/api/v1/auth", tags=["Authentication"])
 
 
 @router.post("/register", response_model=RegisterApiResponse, status_code=status.HTTP_201_CREATED)
-async def register(request: RegisterRequest, req: Request):
+async def register(request: RegisterRequest, req: Request, session: AsyncSession = Depends(get_session)):
     """
     Register a new user
     
@@ -46,7 +48,7 @@ async def register(request: RegisterRequest, req: Request):
         )
     
     try:
-        result = await auth_service.register_user(request)
+        result = await auth_service.register_user(session, request)
         # Extract tokens from result
         access_token = result.get('access_token', '')
         refresh_token = result.get('refresh_token', '')
@@ -72,7 +74,7 @@ async def register(request: RegisterRequest, req: Request):
 
 
 @router.post("/login", response_model=LoginApiResponse)
-async def login(request: LoginRequest, req: Request):
+async def login(request: LoginRequest, req: Request, session: AsyncSession = Depends(get_session)):
     """
     Login user and get access token
     
@@ -94,7 +96,7 @@ async def login(request: LoginRequest, req: Request):
         )
     
     try:
-        result = await auth_service.login_user(request)
+        result = await auth_service.login_user(session, request)
         # result is LoginResponse with user and tokens
         return LoginApiResponse(
             id=result.user.id,
@@ -118,7 +120,7 @@ async def login(request: LoginRequest, req: Request):
 
 
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh_token(request: RefreshTokenRequest):
+async def refresh_token(request: RefreshTokenRequest, session: AsyncSession = Depends(get_session)):
     """
     Refresh access token using refresh token
     
@@ -127,7 +129,7 @@ async def refresh_token(request: RefreshTokenRequest):
     Returns new access token and refresh token
     """
     try:
-        result = await auth_service.refresh_token(request.refresh_token)
+        result = await auth_service.refresh_token(session, request.refresh_token)
         return result
     except ValueError as e:
         raise HTTPException(
@@ -144,7 +146,8 @@ async def refresh_token(request: RefreshTokenRequest):
 @router.post("/change-password", response_model=MessageResponse)
 async def change_password(
     request: ChangePasswordRequest,
-    credentials: HTTPAuthorizationCredentials = Depends(security_scheme)
+    credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
+    session: AsyncSession = Depends(get_session)
 ):
     """
     Change password for authenticated user
@@ -157,6 +160,7 @@ async def change_password(
     try:
         user = await AuthMiddleware.get_current_user(credentials)
         result = await auth_service.change_user_password(
+            session,
             user.id,
             request.old_password,
             request.new_password
@@ -177,7 +181,8 @@ async def change_password(
 @router.post("/logout", response_model=MessageResponse)
 async def logout(
     request: RefreshTokenRequest,
-    credentials: HTTPAuthorizationCredentials = Depends(security_scheme)
+    credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
+    session: AsyncSession = Depends(get_session)
 ):
     """
     Logout user and revoke refresh token
@@ -187,8 +192,8 @@ async def logout(
     Requires authentication token
     """
     try:
-        await AuthMiddleware.get_current_user(credentials)
-        result = await auth_service.logout_user(request.refresh_token)
+        user = await AuthMiddleware.get_current_user(credentials)
+        result = await auth_service.logout_user(session, request.refresh_token)
         return MessageResponse(**result)
     except Exception as e:
         raise HTTPException(

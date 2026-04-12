@@ -1,15 +1,18 @@
 """Admin user management controller"""
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func, or_
 
 from src.middlewares.auth_middleware import security_scheme
-from src.plugins.database import db
+from src.database import get_session
 from src.services.admin_service import admin_service
+from src.models.user import User
 from src.data_contracts.admin_request_response import (
-    AdminUserStatusUpdateRequest,
-    AdminUserRoleChangeRequest,
-    AdminUserResponse,
     AdminUserListResponse,
-    SuccessResponse
+    AdminUserResponse,
+    SuccessResponse,
+    AdminUserStatusUpdateRequest,
+    AdminUserRoleChangeRequest
 )
 
 router = APIRouter(prefix="/api/v1/admin/users", tags=["admin:users"])
@@ -22,7 +25,8 @@ async def list_users(
     status: str = Query(None),
     role: str = Query(None),
     search: str = Query(None),
-    credentials=Depends(security_scheme)
+    credentials=Depends(security_scheme),
+    session: AsyncSession = Depends(get_session)
 ):
     """
     List all users with filters
@@ -38,27 +42,35 @@ async def list_users(
         from src.middlewares.auth_middleware import AuthMiddleware
         admin = await AuthMiddleware.get_current_admin(credentials)
         
-        where = {}
+        where_conditions = []
         if status:
-            where['is_active'] = status == 'active'
+            where_conditions.append(User.is_active == (status == 'active'))
         if role:
-            where['role'] = role
+            where_conditions.append(User.role == role)
         if search:
-            where['OR'] = [
-                {'email': {'contains': search}},
-                {'name': {'contains': search}}
-            ]
+            where_conditions.append(or_(
+                User.email.contains(search),
+                User.first_name.contains(search)
+            ))
         
-        total = await db.client.user.count(where=where)
+        # Build query
+        stmt = select(User)
+        if where_conditions:
+            from sqlalchemy import and_
+            stmt = stmt.where(and_(*where_conditions)) if len(where_conditions) > 1 else stmt.where(where_conditions[0])
         
-        users = await db.client.user.find_many(
-            where=where,
-            skip=(page - 1) * per_page,
-            take=per_page
-        )
+        # Get total count
+        count_stmt = select(func.count()).select_from(User)
+        if where_conditions:
+            from sqlalchemy import and_
+            count_stmt = count_stmt.where(and_(*where_conditions)) if len(where_conditions) > 1 else count_stmt.where(where_conditions[0])
+        count_result = await session.execute(count_stmt)
+        total = count_result.scalar() or 0
         
-        # Sort by created_at descending
-        users = sorted(users, key=lambda x: x.created_at, reverse=True) if users else []
+        # Get paginated results
+        stmt = stmt.order_by(User.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
+        result = await session.execute(stmt)
+        users = result.scalars().all()
         
         user_list = [AdminUserResponse.model_validate(u).dict() for u in users]
         
@@ -79,7 +91,11 @@ async def list_users(
 
 
 @router.get("/{user_id}", response_model=AdminUserResponse)
-async def get_user(user_id: str, credentials=Depends(security_scheme)):
+async def get_user(
+    user_id: str,
+    credentials=Depends(security_scheme),
+    session: AsyncSession = Depends(get_session)
+):
     """
     Get user details
     
@@ -89,7 +105,10 @@ async def get_user(user_id: str, credentials=Depends(security_scheme)):
         from src.middlewares.auth_middleware import AuthMiddleware
         admin = await AuthMiddleware.get_current_admin(credentials)
         
-        user = await db.client.user.find_unique(where={'id': user_id})
+        stmt = select(User).where(User.id == user_id)
+        result = await session.execute(stmt)
+        user = result.scalar_one_or_none()
+        
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -110,7 +129,8 @@ async def get_user(user_id: str, credentials=Depends(security_scheme)):
 async def update_user_status(
     user_id: str,
     request: AdminUserStatusUpdateRequest,
-    credentials=Depends(security_scheme)
+    credentials=Depends(security_scheme),
+    session: AsyncSession = Depends(get_session)
 ):
     """
     Update user status (activate/suspend)
@@ -121,7 +141,10 @@ async def update_user_status(
         from src.middlewares.auth_middleware import AuthMiddleware
         admin = await AuthMiddleware.get_current_admin(credentials)
         
-        user = await db.client.user.find_unique(where={'id': user_id})
+        stmt = select(User).where(User.id == user_id)
+        result = await session.execute(stmt)
+        user = result.scalar_one_or_none()
+        
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -129,10 +152,10 @@ async def update_user_status(
             )
         
         if request.is_active:
-            await admin_service.activate_user(admin.id, user_id, request.reason)
+            await admin_service.activate_user(session, admin.id, user_id, request.reason)
             message = "User activated successfully"
         else:
-            await admin_service.deactivate_user(admin.id, user_id, request.reason)
+            await admin_service.deactivate_user(session, admin.id, user_id, request.reason)
             message = "User deactivated successfully"
         
         return SuccessResponse(message=message)
@@ -149,10 +172,10 @@ async def update_user_status(
 async def change_user_role(
     user_id: str,
     request: AdminUserRoleChangeRequest,
-    credentials=Depends(security_scheme)
+    credentials=Depends(security_scheme),
+    session: AsyncSession = Depends(get_session)
 ):
-    """
-    Change user role
+    """Change user role
     
     Auth Required: Admin (Super Admin only)
     
@@ -163,13 +186,14 @@ async def change_user_role(
         admin = await AuthMiddleware.get_current_admin(credentials)
         
         # Check if admin is super admin
-        if admin.role != 'super_admin':
+        if admin.role != 'ADMIN':
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only super admins can change user roles"
+                detail="Only admins can change user roles"
             )
         
         result = await admin_service.change_user_role(
+            session,
             admin.id,
             user_id,
             request.new_role,
@@ -190,7 +214,8 @@ async def change_user_role(
 async def delete_user(
     user_id: str,
     reason: str = Query(...),
-    credentials=Depends(security_scheme)
+    credentials=Depends(security_scheme),
+    session: AsyncSession = Depends(get_session)
 ):
     """
     Delete user (soft delete - just deactivate)
@@ -202,13 +227,16 @@ async def delete_user(
         admin = await AuthMiddleware.get_current_admin(credentials)
         
         # Check if admin is super admin
-        if admin.role != 'super_admin':
+        if admin.role != 'ADMIN':
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only super admins can delete users"
+                detail="Only admins can delete users"
             )
         
-        user = await db.client.user.find_unique(where={'id': user_id})
+        stmt = select(User).where(User.id == user_id)
+        result = await session.execute(stmt)
+        user = result.scalar_one_or_none()
+        
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -216,7 +244,7 @@ async def delete_user(
             )
         
         # Soft delete by deactivating
-        await admin_service.deactivate_user(admin.id, user_id, reason)
+        await admin_service.deactivate_user(session, admin.id, user_id, reason)
         
         return SuccessResponse(message="User deleted successfully")
     except HTTPException:

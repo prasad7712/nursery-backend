@@ -1,6 +1,7 @@
 """Order API Controller"""
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.security import HTTPAuthorizationCredentials
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.middlewares.auth_middleware import AuthMiddleware, security_scheme
 from src.services.order_service import OrderService
@@ -9,6 +10,7 @@ from src.data_contracts.api_request_response import (
     OrderResponse,
     OrderListResponse
 )
+from src.database import get_session
 
 router = APIRouter(prefix="/api/v1", tags=["Orders"])
 order_service = OrderService()
@@ -17,7 +19,8 @@ order_service = OrderService()
 @router.post("/orders", response_model=OrderResponse, status_code=201)
 async def create_order(
     request: CreateOrderRequest,
-    credentials: HTTPAuthorizationCredentials = Depends(security_scheme)
+    credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
+    session: AsyncSession = Depends(get_session)
 ):
     """
     Create order from user's cart.
@@ -37,6 +40,7 @@ async def create_order(
     try:
         user = await AuthMiddleware.get_current_user(credentials)
         result = await order_service.create_order(
+            session,
             user_id=user.id,
             shipping_address=request.shipping_address,
             notes=request.notes
@@ -53,7 +57,8 @@ async def create_order(
 async def get_user_orders(
     credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
     page: int = Query(1, ge=1),
-    per_page: int = Query(10, ge=1, le=100)
+    per_page: int = Query(10, ge=1, le=100),
+    session: AsyncSession = Depends(get_session)
 ):
     """
     Get user's orders with pagination.
@@ -69,6 +74,7 @@ async def get_user_orders(
     try:
         user = await AuthMiddleware.get_current_user(credentials)
         result = await order_service.get_user_orders(
+            session,
             user_id=user.id,
             page=page,
             per_page=per_page
@@ -82,7 +88,8 @@ async def get_user_orders(
 @router.get("/orders/{order_id}", response_model=OrderResponse, status_code=200)
 async def get_order_details(
     order_id: str,
-    credentials: HTTPAuthorizationCredentials = Depends(security_scheme)
+    credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
+    session: AsyncSession = Depends(get_session)
 ):
     """
     Get order details.
@@ -97,6 +104,7 @@ async def get_order_details(
     try:
         user = await AuthMiddleware.get_current_user(credentials)
         result = await order_service.get_order_details(
+            session,
             user_id=user.id,
             order_id=order_id
         )

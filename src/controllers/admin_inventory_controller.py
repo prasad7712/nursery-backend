@@ -1,9 +1,13 @@
 """Admin inventory management controller"""
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func
 
 from src.middlewares.auth_middleware import security_scheme
-from src.plugins.database import db
+from src.database import get_session
 from src.services.admin_service import admin_service
+from src.models.admin import ProductInventory
+from src.models.product import Product
 from src.data_contracts.admin_request_response import (
     AdminInventoryAdjustmentRequest,
     AdminInventoryResponse,
@@ -20,7 +24,8 @@ async def list_inventory(
     per_page: int = Query(20, ge=1, le=100),
     low_stock_only: bool = Query(False),
     product_id: str = Query(None),
-    credentials=Depends(security_scheme)
+    credentials=Depends(security_scheme),
+    session: AsyncSession = Depends(get_session)
 ):
     """
     List product inventory
@@ -51,24 +56,38 @@ async def list_inventory(
                 total_pages=inventory_list['total_pages']
             )
         
-        where = {}
+        where_conditions = []
+        if low_stock_only:
+            where_conditions.append(ProductInventory.stock_level <= ProductInventory.low_stock_threshold)
         if product_id:
-            where['product_id'] = product_id
+            where_conditions.append(ProductInventory.product_id == product_id)
         
-        total = await db.client.productinventory.count(where=where)
+        # Build query
+        stmt = select(ProductInventory)
+        if where_conditions:
+            from sqlalchemy import and_
+            stmt = stmt.where(and_(*where_conditions)) if len(where_conditions) > 1 else stmt.where(where_conditions[0])
         
-        inventories = await db.client.productinventory.find_many(
-            where=where,
-            skip=(page - 1) * per_page,
-            take=per_page,
-            include={'product': True}
-        )
+        # Get total count
+        count_stmt = select(func.count()).select_from(ProductInventory)
+        if where_conditions:
+            from sqlalchemy import and_
+            count_stmt = count_stmt.where(and_(*where_conditions)) if len(where_conditions) > 1 else count_stmt.where(where_conditions[0])
+        count_result = await session.execute(count_stmt)
+        total = count_result.scalar() or 0
+        
+        # Get paginated results with relationships
+        from sqlalchemy.orm import selectinload
+        stmt = stmt.options(selectinload(ProductInventory.product)).offset(
+            (page - 1) * per_page
+        ).limit(per_page)
+        result = await session.execute(stmt)
+        inventories = result.scalars().unique().all()
         
         inventory_list = []
         for inv in inventories:
-            inv_dict = AdminInventoryResponse.model_validate(inv).dict()
-            inv_dict['product_name'] = inv.product.name if inv.product else None
-            inventory_list.append(AdminInventoryResponse(**inv_dict))
+            inv_response = AdminInventoryResponse.model_validate(inv)
+            inventory_list.append(inv_response)
         
         return AdminInventoryListResponse(
             inventories=inventory_list,
@@ -87,29 +106,34 @@ async def list_inventory(
 
 
 @router.get("/{product_id}", response_model=AdminInventoryResponse)
-async def get_inventory(product_id: str, credentials=Depends(security_scheme)):
-    """
-    Get product inventory details
+async def get_inventory(
+    product_id: str,
+    credentials=Depends(security_scheme),
+    session: AsyncSession = Depends(get_session)
+):
+    """Get product inventory details
     
     Auth Required: Admin
     """
     try:
         from src.middlewares.auth_middleware import AuthMiddleware
+        from sqlalchemy.orm import selectinload
+        
         admin = await AuthMiddleware.get_current_admin(credentials)
         
-        inventory = await db.client.productinventory.find_unique(
-            where={'product_id': product_id},
-            include={'product': True}
-        )
+        stmt = select(ProductInventory).where(
+            ProductInventory.product_id == product_id
+        ).options(selectinload(ProductInventory.product))
+        result = await session.execute(stmt)
+        inventory = result.scalar_one_or_none()
+        
         if not inventory:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Inventory not found"
             )
         
-        inv_dict = AdminInventoryResponse.model_validate(inventory).dict()
-        inv_dict['product_name'] = inventory.product.name if inventory.product else None
-        return AdminInventoryResponse(**inv_dict)
+        return AdminInventoryResponse.model_validate(inventory)
     except HTTPException:
         raise
     except Exception as e:
@@ -123,10 +147,10 @@ async def get_inventory(product_id: str, credentials=Depends(security_scheme)):
 async def adjust_inventory(
     inventory_id: str,
     request: AdminInventoryAdjustmentRequest,
-    credentials=Depends(security_scheme)
+    credentials=Depends(security_scheme),
+    session: AsyncSession = Depends(get_session)
 ):
-    """
-    Adjust product inventory
+    """Adjust product inventory
     
     Auth Required: Admin
     
@@ -140,6 +164,7 @@ async def adjust_inventory(
         admin = await AuthMiddleware.get_current_admin(credentials)
         
         result = await admin_service.adjust_inventory(
+            session,
             admin_id=admin.id,
             inventory_id=inventory_id,
             change_type=request.change_type,
@@ -165,10 +190,10 @@ async def adjust_inventory(
 async def get_low_stock_products(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
-    credentials=Depends(security_scheme)
+    credentials=Depends(security_scheme),
+    session: AsyncSession = Depends(get_session)
 ):
-    """
-    Get list of low stock products
+    """Get list of low stock products
     
     Auth Required: Admin
     """
@@ -177,13 +202,14 @@ async def get_low_stock_products(
         admin = await AuthMiddleware.get_current_admin(credentials)
         
         inventory_data = await admin_service.get_low_stock_products(
+            session,
             page=page,
             per_page=per_page
         )
         
         return AdminInventoryListResponse(
             inventories=[
-                AdminInventoryResponse.model_validate(inv).dict() 
+                AdminInventoryResponse.model_validate(inv) 
                 for inv in inventory_data['inventories']
             ],
             total=inventory_data['total'],

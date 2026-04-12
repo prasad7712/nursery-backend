@@ -1,7 +1,10 @@
 """Core product business logic"""
 from typing import Optional, List, Dict, Any
 
-from src.plugins.database import db
+from sqlalchemy import select, func, or_
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.models.product import Product, Category, ProductDisease
 
 
 class ProductCore:
@@ -9,6 +12,7 @@ class ProductCore:
     
     async def get_all_products(
         self,
+        session: AsyncSession,
         category_id: Optional[str] = None,
         search: Optional[str] = None,
         page: int = 1,
@@ -17,35 +21,44 @@ class ProductCore:
         """Get all active products with optional filtering and pagination"""
         
         # Build where conditions
-        where_conditions = {'is_active': True}
+        conditions = [Product.is_active == True]
         
         if category_id:
-            where_conditions['category_id'] = category_id
+            conditions.append(Product.category_id == category_id)
         
         if search:
             # Search in name or description
-            where_conditions['OR'] = [
-                {'name': {'contains': search}},
-                {'description': {'contains': search}}
-            ]
+            conditions.append(
+                or_(
+                    Product.name.contains(search),
+                    Product.description.contains(search)
+                )
+            )
         
         # Get total count
-        total = await db.client.product.count(where=where_conditions)
+        result = await session.execute(
+            select(func.count(Product.id)).where(*conditions)
+        )
+        total = result.scalar() or 0
         
         # Calculate skip for pagination
         skip = (page - 1) * per_page
         
         # Get paginated products
-        products = await db.client.product.find_many(
-            where=where_conditions,
-            skip=skip,
-            take=per_page,
-            include={'diseases': True}
+        result = await session.execute(
+            select(Product).where(*conditions).offset(skip).limit(per_page)
         )
+        products = result.scalars().all()
         
         # Convert to dictionaries with common_diseases
         products_list = []
         for product in products:
+            # Fetch diseases for this product
+            result = await session.execute(
+                select(ProductDisease).where(ProductDisease.product_id == product.id)
+            )
+            diseases = result.scalars().all()
+            
             product_dict = {
                 'id': product.id,
                 'name': product.name,
@@ -59,7 +72,7 @@ class ProductCore:
                 'light_requirements': product.light_requirements,
                 'watering_frequency': product.watering_frequency,
                 'temperature_range': product.temperature_range,
-                'common_diseases': [d.disease_name for d in product.diseases] if hasattr(product, 'diseases') else [],
+                'common_diseases': [d.disease_name for d in diseases],
                 'is_active': product.is_active,
                 'created_at': product.created_at
             }
@@ -72,19 +85,20 @@ class ProductCore:
             'per_page': per_page
         }
     
-    async def get_product_detail(self, product_id: str) -> Dict[str, Any]:
+    async def get_product_detail(self, session: AsyncSession, product_id: str) -> Dict[str, Any]:
         """Get product detail by ID"""
         
-        product = await db.client.product.find_unique(
-            where={'id': product_id},
-            include={'diseases': True}
+        result = await session.execute(select(Product).where(Product.id == product_id))
+        product = result.scalar_one_or_none()
+        
+        if not product or not product.is_active:
+            raise ValueError("Product not found")
+        
+        # Fetch diseases for this product
+        result = await session.execute(
+            select(ProductDisease).where(ProductDisease.product_id == product.id)
         )
-        
-        if not product:
-            raise ValueError("Product not found")
-        
-        if not product.is_active:
-            raise ValueError("Product not found")
+        diseases = result.scalars().all()
         
         # Convert to dictionary with common_diseases
         product_dict = {
@@ -101,7 +115,7 @@ class ProductCore:
             'light_requirements': product.light_requirements,
             'watering_frequency': product.watering_frequency,
             'temperature_range': product.temperature_range,
-            'common_diseases': [d.disease_name for d in product.diseases] if hasattr(product, 'diseases') else [],
+            'common_diseases': [d.disease_name for d in diseases],
             'is_active': product.is_active,
             'created_at': product.created_at,
             'updated_at': product.updated_at
@@ -109,10 +123,11 @@ class ProductCore:
         
         return product_dict
     
-    async def get_all_categories(self) -> List[Dict[str, Any]]:
+    async def get_all_categories(self, session: AsyncSession) -> List[Dict[str, Any]]:
         """Get all categories"""
         
-        categories = await db.client.category.find_many()
+        result = await session.execute(select(Category))
+        categories = result.scalars().all()
         
         # Convert to dictionaries
         categories_list = []
@@ -127,3 +142,7 @@ class ProductCore:
             categories_list.append(category_dict)
         
         return categories_list
+
+
+# Singleton instance
+product_core = ProductCore()

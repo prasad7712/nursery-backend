@@ -4,7 +4,10 @@ from typing import Tuple
 import hashlib
 import uuid
 
-from src.plugins.database import db
+from sqlalchemy import select, and_
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.models.user import User, RefreshToken
 from src.utilities.security import security
 from src.utilities.config_manager import config
 
@@ -12,39 +15,44 @@ from src.utilities.config_manager import config
 class AuthCore:
     """Core authentication logic"""
     
-    async def create_user(self, email: str, password: str, phone: str = None,
+    async def create_user(self, session: AsyncSession, email: str, password: str, phone: str = None,
                          first_name: str = None, last_name: str = None):
         """Create a new user"""
-        # Check if user already exists
-        existing_user = await db.client.user.find_unique(where={'email': email})
+        # Check if user already exists by email
+        result = await session.execute(select(User).where(User.email == email))
+        existing_user = result.scalar_one_or_none()
+        
         if existing_user:
             raise ValueError("User with this email already exists")
         
         if phone:
-            existing_phone = await db.client.user.find_unique(where={'phone': phone})
+            result = await session.execute(select(User).where(User.phone == phone))
+            existing_phone = result.scalar_one_or_none()
             if existing_phone:
                 raise ValueError("User with this phone number already exists")
         
         # Hash password
         password_hash = security.hash_password(password)
         
-        # Create user with Prisma (it will auto-generate ID and set default role)
-        user = await db.client.user.create(
-            data={
-                'email': email,
-                'password_hash': password_hash,
-                'phone': phone,
-                'first_name': first_name,
-                'last_name': last_name,
-                'is_active': True
-            }
+        # Create user (SQLAlchemy will auto-generate UUID and set defaults)
+        user = User(
+            email=email,
+            password_hash=password_hash,
+            phone=phone,
+            first_name=first_name,
+            last_name=last_name,
+            is_active=True
         )
         
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
         return user
     
-    async def authenticate_user(self, email: str, password: str):
+    async def authenticate_user(self, session: AsyncSession, email: str, password: str):
         """Authenticate user with email and password"""
-        user = await db.client.user.find_unique(where={'email': email})
+        result = await session.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
         
         if not user:
             raise ValueError("Invalid credentials")
@@ -57,15 +65,18 @@ class AuthCore:
         
         return user
     
-    async def create_tokens(self, user_id: str) -> Tuple[str, str]:
+    async def create_tokens(self, session: AsyncSession, user_id: str) -> Tuple[str, str]:
         """Create access and refresh tokens with user role"""
         # Get user to include role in token
-        user = await db.client.user.find_unique(where={'id': user_id})
+        result = await session.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+        
         if not user:
             raise ValueError("User not found")
         
         # Get user role (default to CUSTOMER if not set)
-        user_role = getattr(user, 'role', 'CUSTOMER')
+        # user.role is stored as string in DB, so check if it has .value attr (enum) or use directly (string)
+        user_role = user.role.value if hasattr(user.role, 'value') else (user.role or "CUSTOMER")
         
         # Create access token with role
         access_token = security.create_access_token(
@@ -84,20 +95,21 @@ class AuthCore:
         # Generate hash of refresh token for database storage
         token_hash = hashlib.sha256(refresh_token_value.encode()).hexdigest()
         
-        # Store refresh token in database with Prisma
+        # Store refresh token in database
         expires_at = datetime.now(timezone.utc) + timedelta(days=config.jwt_refresh_token_expire_days)
-        await db.client.refreshtoken.create(
-            data={
-                'user_id': user_id,
-                'token': refresh_token_value,
-                'token_hash': token_hash,
-                'expires_at': expires_at
-            }
+        refresh_token = RefreshToken(
+            user_id=user_id,
+            token=refresh_token_value,
+            token_hash=token_hash,
+            expires_at=expires_at
         )
+        
+        session.add(refresh_token)
+        await session.commit()
         
         return access_token, refresh_token_value
     
-    async def refresh_access_token(self, refresh_token: str) -> Tuple[str, str]:
+    async def refresh_access_token(self, session: AsyncSession, refresh_token: str) -> Tuple[str, str]:
         """Refresh access token using refresh token"""
         # Verify refresh token
         payload = security.decode_token(refresh_token)
@@ -108,9 +120,8 @@ class AuthCore:
         token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
         
         # Check if refresh token exists and is valid
-        token_record = await db.client.refreshtoken.find_unique(
-            where={'token_hash': token_hash}
-        )
+        result = await session.execute(select(RefreshToken).where(RefreshToken.token_hash == token_hash))
+        token_record = result.scalar_one_or_none()
         
         if not token_record:
             raise ValueError("Refresh token not found")
@@ -122,22 +133,25 @@ class AuthCore:
             raise ValueError("Refresh token has expired")
         
         # Get user
-        user = await db.client.user.find_unique(where={'id': token_record.user_id})
+        result = await session.execute(select(User).where(User.id == token_record.user_id))
+        user = result.scalar_one_or_none()
+        
         if not user or not user.is_active:
             raise ValueError("User not found or inactive")
         
         # Revoke old refresh token
-        await db.client.refreshtoken.update(
-            where={'id': token_record.id},
-            data={'is_revoked': True}
-        )
+        token_record.is_revoked = True
+        session.add(token_record)
+        await session.commit()
         
         # Create new tokens
-        return await self.create_tokens(user.id)
+        return await self.create_tokens(session, user.id)
     
-    async def change_password(self, user_id: str, old_password: str, new_password: str) -> bool:
+    async def change_password(self, session: AsyncSession, user_id: str, old_password: str, new_password: str) -> bool:
         """Change user password (authenticated)"""
-        user = await db.client.user.find_unique(where={'id': user_id})
+        result = await session.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+        
         if not user:
             raise ValueError("User not found")
         
@@ -147,40 +161,51 @@ class AuthCore:
         
         # Update password
         password_hash = security.hash_password(new_password)
-        await db.client.user.update(
-            where={'id': user_id},
-            data={'password_hash': password_hash}
-        )
+        user.password_hash = password_hash
+        
+        session.add(user)
+        await session.commit()
         
         # Revoke all refresh tokens
-        await db.client.refreshtoken.update_many(
-            where={'user_id': user_id, 'is_revoked': False},
-            data={'is_revoked': True}
+        result = await session.execute(
+            select(RefreshToken).where(
+                and_(
+                    RefreshToken.user_id == user_id,
+                    RefreshToken.is_revoked == False
+                )
+            )
         )
+        tokens = result.scalars().all()
         
+        for token in tokens:
+            token.is_revoked = True
+            session.add(token)
+        
+        await session.commit()
         return True
     
-    async def logout(self, refresh_token: str) -> bool:
+    async def logout(self, session: AsyncSession, refresh_token: str) -> bool:
         """Logout user by revoking refresh token"""
         # Generate hash of refresh token for lookup
         token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
         
-        token_record = await db.client.refreshtoken.find_unique(
-            where={'token_hash': token_hash}
-        )
+        result = await session.execute(select(RefreshToken).where(RefreshToken.token_hash == token_hash))
+        token_record = result.scalar_one_or_none()
         
         if token_record:
             # Revoke the refresh token
-            await db.client.refreshtoken.update(
-                where={'id': token_record.id},
-                data={'is_revoked': True}
-            )
+            token_record.is_revoked = True
+            session.add(token_record)
             
             # Set user's last logout time
-            await db.client.user.update(
-                where={'id': token_record.user_id},
-                data={'last_logout_at': datetime.now(timezone.utc)}
-            )
+            result = await session.execute(select(User).where(User.id == token_record.user_id))
+            user = result.scalar_one_or_none()
+            
+            if user:
+                user.last_logout_at = datetime.now(timezone.utc)
+                session.add(user)
+            
+            await session.commit()
         
         return True
 

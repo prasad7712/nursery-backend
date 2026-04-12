@@ -1,6 +1,8 @@
 """Order business logic service layer"""
 from typing import Dict, Any
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.core.order_core import OrderCore
 
 
@@ -12,6 +14,7 @@ class OrderService:
     
     async def create_order(
         self,
+        session: AsyncSession,
         user_id: str,
         shipping_address: str,
         notes: str = None
@@ -24,7 +27,7 @@ class OrderService:
         """
         try:
             result = await self.order_core.create_order(
-                user_id, shipping_address, notes
+                session, user_id, shipping_address, notes
             )
             return result
         except ValueError as e:
@@ -34,6 +37,7 @@ class OrderService:
     
     async def get_user_orders(
         self,
+        session: AsyncSession,
         user_id: str,
         page: int = 1,
         per_page: int = 10
@@ -41,20 +45,20 @@ class OrderService:
         """Get user's orders with pagination."""
         try:
             result = await self.order_core.get_user_orders(
-                user_id, page, per_page
+                session, user_id, page, per_page
             )
             return result
         except Exception as e:
             raise Exception(f"Error fetching orders: {str(e)}")
     
     async def get_order_details(
-        self,
+        session: AsyncSession,
         user_id: str,
         order_id: str
     ) -> Dict[str, Any]:
         """Get order details."""
         try:
-            result = await self.order_core.get_order_details(user_id, order_id)
+            result = await self.order_core.get_order_details(session, user_id, order_id)
             return result
         except ValueError as e:
             raise ValueError(str(e))
