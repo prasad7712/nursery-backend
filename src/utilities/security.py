@@ -2,15 +2,11 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 import secrets
+import bcrypt
 
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from src.utilities.config_manager import config
-
-
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 class SecurityUtils:
@@ -29,12 +25,20 @@ class SecurityUtils:
             # Decode back to string, ignoring partial multi-byte characters at end
             password = password_bytes.decode('utf-8', errors='ignore')
         
-        return pwd_context.hash(password)
+        # Hash with bcrypt
+        salt = bcrypt.gensalt(rounds=12)
+        return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
     
     @staticmethod
     def verify_password(plain_password: str, hashed_password: str) -> bool:
         """Verify a password against its hash"""
-        return pwd_context.verify(plain_password, hashed_password)
+        # Truncate to 72 bytes as per bcrypt limitation
+        password_bytes = plain_password.encode('utf-8')
+        if len(password_bytes) > 72:
+            password_bytes = password_bytes[:72]
+            plain_password = password_bytes.decode('utf-8', errors='ignore')
+        
+        return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
     
     @staticmethod
     def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
