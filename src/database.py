@@ -17,6 +17,10 @@ DATABASE_URL = os.getenv(
     "postgresql+asyncpg://postgres:postgres@localhost:5432/nursery_db"
 )
 
+# Convert postgresql:// to postgresql+asyncpg:// for async support
+if DATABASE_URL and DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+
 # Create async engine
 engine: AsyncEngine = create_async_engine(
     DATABASE_URL,
