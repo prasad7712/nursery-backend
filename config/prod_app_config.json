@@ -29,7 +29,11 @@
     "window_seconds": 60
   },
   "cors": {
-    "origins": ["${FRONTEND_URL}"]
+    "origins": [
+      "https://nursery-frontend-rose.vercel.app",
+      "http://localhost:3000",
+      "http://localhost:3001"
+    ]
   },
   "admin_email": "${ADMIN_EMAIL}",
   "admin_password": "${ADMIN_PASSWORD}",
