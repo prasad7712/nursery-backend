@@ -15,12 +15,6 @@ services:
       echo "==> Installing dependencies with wheel preference..."
       pip install --prefer-binary --no-build-isolation -r requirements.txt
       
-      echo "==> Generating Prisma client..."
-      python -m prisma generate
-      
-      echo "==> Fetching Prisma query engine binaries..."
-      python -m prisma py fetch
-      
       echo "==> Build completed successfully"
     
     startCommand: python run_app.py
@@ -48,8 +42,6 @@ services:
         value: rzp_test_secret
       - key: GROQ_API_KEY
         value: gsk_your_groq_api_key
-      - key: PRISMA_PYTHON_BINARIES_CACHE
-        value: /opt/render/.cache/prisma-python
 
 databases:
   - name: nursery_db
