@@ -22,13 +22,14 @@ async def initialize_admin():
                 print("⚠️  Admin credentials not configured in .env")
                 return
             
-            # Strip whitespace
-            admin_password = admin_password.strip() if isinstance(admin_password, str) else admin_password
-            
-            # Truncate password to 72 bytes (bcrypt limit)
-            if isinstance(admin_password, str) and len(admin_password.encode()) > 72:
-                print(f"⚠️  Admin password exceeds 72 bytes ({len(admin_password.encode())} bytes), truncating...")
-                admin_password = admin_password.encode()[:72].decode('utf-8', errors='ignore')
+            # Strip whitespace and truncate to 72 bytes (bcrypt limit)
+            if isinstance(admin_password, str):
+                admin_password = admin_password.strip()
+                password_bytes = admin_password.encode('utf-8')
+                if len(password_bytes) > 72:
+                    print(f"⚠️  Admin password exceeds 72 bytes ({len(password_bytes)} bytes), truncating...")
+                    # Safely truncate at byte boundary
+                    admin_password = password_bytes[:72].decode('utf-8', errors='ignore').strip()
             
             # Check if admin already exists
             stmt = select(User).where(User.email == admin_email)
