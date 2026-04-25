@@ -24,30 +24,7 @@ echo "Step 3: Installing dependencies"
 pip install --prefer-binary --no-build-isolation -r requirements.txt
 
 echo ""
-echo "Step 4: Generating Prisma client"
-python -m prisma generate
-
-echo ""
-echo "Step 5: Setting up Prisma cache directory"
-export PRISMA_PYTHON_BINARIES_CACHE=/opt/render/.cache/prisma-python
-mkdir -p $PRISMA_PYTHON_BINARIES_CACHE
-echo "Cache directory: $PRISMA_PYTHON_BINARIES_CACHE"
-
-echo ""
-echo "Step 6: Fetching Prisma query engine binaries"
-python -m prisma py fetch
-
-echo ""
-echo "Step 6: Fetching Prisma query engine binaries"
-python -m prisma py fetch
-
-echo ""
-echo "Step 7: Setting up Prisma binary permissions"
-# Make all Prisma binaries executable
-find /opt/render/.cache/prisma-python -name "prisma-query-engine*" -type f 2>/dev/null | while read binary; do
-  chmod +x "$binary"
-  echo "✅ Made executable: $(basename $binary)"
-done
+echo "✅ Build completed successfully"
 
 # Set environment variable for Prisma to find binaries
 export PRISMA_PYTHON_BINARIES_CACHE=/opt/render/.cache/prisma-python

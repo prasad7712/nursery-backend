@@ -16,10 +16,4 @@ pip install --prefer-binary \
     --no-build-isolation \
     -r requirements.txt
 
-echo "==> Generating Prisma client and fetching binaries..."
-python -m prisma generate
-python -m prisma py fetch
-
-echo "==> Verification: Prisma client generated successfully"
-
 echo "==> Build completed successfully!"
