@@ -132,10 +132,13 @@ async def health_check_endpoint():
     Returns the status of the service and its dependencies
     """
     db_status = "healthy" if await health_check() else "unhealthy"
+    cache_enabled = config.get('redis.enabled', False)
+    cache_status = "healthy" if cache_enabled else "disabled"
     
     return HealthCheckResponse(
         status="healthy",
         database=db_status,
+        cache=cache_status,
         timestamp=datetime.utcnow()
     )
 

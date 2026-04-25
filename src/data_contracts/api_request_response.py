@@ -191,7 +191,7 @@ class HealthCheckResponse(BaseModel):
     """Health check response"""
     status: str
     database: str
-    cache: str
+    cache: str = "disabled"
     timestamp: datetime
 
 
