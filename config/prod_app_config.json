@@ -21,7 +21,7 @@
     "port": 6379,
     "db": 0,
     "password": "${REDIS_PASSWORD}",
-    "enabled": true
+    "enabled": false
   },
   "rate_limiting": {
     "enabled": true,
